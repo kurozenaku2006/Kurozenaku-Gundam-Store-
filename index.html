@@ -11,57 +11,61 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-<script src="cart.js"></script>
 </head>
 
-<body class="bg-black text-white">
+<body class="bg-gradient-to-b from-black via-gray-900 to-black text-white">
 
-<div x-data="{...shop(), ...CartSystem()}" x-init="init()" class="p-6 max-w-6xl mx-auto">
+<div x-data="app()" x-init="init()" class="p-6 max-w-6xl mx-auto">
 
 <!-- HEADER -->
-<div class="flex justify-between mb-6">
-<h1 class="text-2xl font-bold">GUNDAM STORE</h1>
+<div class="flex justify-between items-center mb-6">
+<h1 class="text-3xl font-bold">GUNDAM STORE</h1>
 
-<div>
+<div class="flex gap-2 items-center">
+
 <span x-show="user" x-text="user.displayName"></span>
 
-<button @click="login" x-show="!user" class="bg-white text-black px-4 py-2">Login</button>
-<button @click="logout" x-show="user" class="bg-red-500 px-4 py-2">Logout</button>
-</div>
-</div>
+<button @click="view='cart'" class="bg-white/10 px-3 py-2 rounded">
+Cart (<span x-text="cart.length"></span>)
+</button>
 
-<!-- CART -->
-<div class="bg-gray-800 p-4 rounded mb-6">
-<h2 class="font-bold mb-2">🛒 Cart</h2>
+<button @click="view='orders'" class="bg-white/10 px-3 py-2 rounded">
+Orders
+</button>
 
-<template x-for="item in cart">
-<div class="flex justify-between border-b py-2">
-<span x-text="item.name"></span>
-<span>₹<span x-text="item.price"></span> x <span x-text="item.qty"></span></span>
-<button @click="remove(item.id)" class="text-red-400">X</button>
+<button x-show="isAdmin" @click="view='admin'" class="bg-yellow-400 text-black px-3 py-2 rounded">
+Admin
+</button>
+
+<button x-show="!user" @click="login" class="bg-white text-black px-3 py-2 rounded">
+Login
+</button>
+
+<button x-show="user" @click="logout" class="bg-red-500 px-3 py-2 rounded">
+Logout
+</button>
+
 </div>
-</template>
-
-<p class="mt-2">Total: ₹<span x-text="total"></span></p>
-<button @click="clear()" class="bg-red-500 px-3 py-1 mt-2">Clear</button>
 </div>
 
 <!-- PRODUCTS -->
-<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+<div x-show="view==='shop'" class="grid grid-cols-2 md:grid-cols-4 gap-4">
 
 <template x-for="p in products" :key="p.id">
-<div class="bg-white text-black p-3 rounded">
+<div class="bg-white/10 p-3 rounded">
 
 <img :src="p.image" class="h-40 w-full object-contain">
 
 <h2 x-text="p.name"></h2>
 <p>₹<span x-text="p.price"></span></p>
 
-<button @click="add(p)" class="bg-yellow-400 w-full mt-2 py-2">
+<p class="text-xs">Stock: <span x-text="p.stock"></span></p>
+
+<button @click="addToCart(p)" class="bg-yellow-400 text-black w-full mt-2 py-1">
 Add to Cart
 </button>
 
-<button @click="buy(p)" class="bg-black text-white w-full mt-2 py-2">
+<button @click="buyNow(p)" class="bg-white text-black w-full mt-2 py-1">
 Buy Now
 </button>
 
@@ -70,11 +74,55 @@ Buy Now
 
 </div>
 
+<!-- CART -->
+<div x-show="view==='cart'">
+<h2 class="text-xl mb-4">Cart</h2>
+
+<template x-for="item in cart">
+<div class="flex justify-between border-b py-2">
+<span x-text="item.name"></span>
+<span>₹<span x-text="item.price"></span></span>
+</div>
+</template>
+
+<button @click="checkoutCart()" class="bg-green-500 px-4 py-2 mt-4">
+Checkout
+</button>
+</div>
+
+<!-- ORDERS -->
+<div x-show="view==='orders'">
+<h2 class="text-xl mb-4">Orders</h2>
+
+<template x-for="o in orders">
+<div class="border p-2 mb-2">
+<p x-text="o.productId"></p>
+<p x-text="o.status"></p>
+</div>
+</template>
+
+</div>
+
+<!-- ADMIN -->
+<div x-show="view==='admin'">
+<h2 class="text-xl mb-4">Admin Panel</h2>
+
+<input x-model="name" placeholder="Name" class="text-black p-2">
+<input x-model="price" placeholder="Price" class="text-black p-2">
+<input x-model="stock" placeholder="Stock" class="text-black p-2">
+<input x-model="image" placeholder="Image URL" class="text-black p-2">
+
+<button @click="addProduct()" class="bg-blue-500 px-4 py-2">
+Add Product
+</button>
+
+</div>
+
 </div>
 
 <script>
 firebase.initializeApp({
-  apiKey: "AIzaSyByLURDPjEbLepc3Wz3O1MAYYLXSeu04Zg",
+ apiKey: "AIzaSyByLURDPjEbLepc3Wz3O1MAYYLXSeu04Zg",
   authDomain: "kurozenaku-gundam-store.firebaseapp.com",
   projectId: "kurozenaku-gundam-store"
 });
@@ -82,71 +130,117 @@ firebase.initializeApp({
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-function shop(){
+function app(){
 return{
 
-products:[],
+view:'shop',
 user:null,
+isAdmin:false,
+
+products:[],
+cart:[],
+orders:[],
+
+name:'',price:'',stock:'',image:'',
 
 init(){
-  auth.onAuthStateChanged(u => this.user = u);
 
-  db.collection("products").onSnapshot(snap=>{
-    this.products = snap.docs.map(d=>({
-      id:d.id,
-      ...d.data()
-    }));
-  });
+auth.onAuthStateChanged(async u=>{
+ this.user = u;
+ this.isAdmin = u && u.email === "vedantbhalge2006@gmail.com";
+
+ if(u){
+  this.loadOrders();
+ }
+});
+
+db.collection("products").onSnapshot(snap=>{
+ this.products = snap.docs.map(d=>({
+  id:d.id,
+  ...d.data()
+ }));
+});
+
 },
 
 login(){
-  auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+ auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
 },
 
 logout(){
-  auth.signOut();
+ auth.signOut();
 },
 
-async buy(p){
-  if(!this.user) return alert("Login first");
+addToCart(p){
+ this.cart.push(p);
+},
 
-  const token = await this.user.getIdToken();
+async checkoutCart(){
+ for(let item of this.cart){
+  await this.buyNow(item);
+ }
+ this.cart = [];
+},
 
-  const res = await fetch("https://kurozenaku-gundam-store.onrender.com/create-order",{
-    method:"POST",
-    headers:{
-      "Content-Type":"application/json",
-      "Authorization":"Bearer "+token
-    },
-    body:JSON.stringify({productId:p.id})
-  });
+async buyNow(p){
 
-  const order = await res.json();
+const token = await this.user.getIdToken();
 
-  const rzp = new Razorpay({
-    key:"YOUR_RAZORPAY_KEY",
-    amount:order.amount,
+const res = await fetch("https://kurozenaku-gundam-store.onrender.com/create-order",{
+ method:"POST",
+ headers:{
+  "Content-Type":"application/json",
+  "Authorization":"Bearer "+token
+ },
+ body:JSON.stringify({productId:p.id})
+});
+
+const order = await res.json();
+
+const rzp = new Razorpay({
+ key:"YOUR_RAZORPAY_KEY",
+ amount:order.amount,
+ order_id:order.id,
+
+ handler: async (response)=>{
+  await fetch("https://kurozenaku-gundam-store.onrender.com/verify",{
+   method:"POST",
+   headers:{
+    "Content-Type":"application/json",
+    "Authorization":"Bearer "+token
+   },
+   body:JSON.stringify({
     order_id:order.id,
-
-    handler: async (response)=>{
-      await fetch("https://kurozenaku-gundam-store.onrender.com/verify",{
-        method:"POST",
-        headers:{
-          "Content-Type":"application/json",
-          "Authorization":"Bearer "+token
-        },
-        body:JSON.stringify({
-          order_id:order.id,
-          payment_id:response.razorpay_payment_id,
-          signature:response.razorpay_signature
-        })
-      });
-
-      alert("Payment Success");
-    }
+    payment_id:response.razorpay_payment_id,
+    signature:response.razorpay_signature
+   })
   });
 
-  rzp.open();
+  alert("Payment Success");
+ }
+});
+
+rzp.open();
+},
+
+async loadOrders(){
+const token = await this.user.getIdToken();
+
+const res = await fetch("https://kurozenaku-gundam-store.onrender.com/orders",{
+ headers:{Authorization:"Bearer "+token}
+});
+
+this.orders = await res.json();
+},
+
+async addProduct(){
+await db.collection("products").add({
+ name:this.name,
+ price:Number(this.price),
+ stock:Number(this.stock),
+ image:this.image
+});
+alert("Added");
 }
 
 }
