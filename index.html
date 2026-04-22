@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Gundam Store</title>
+<title>Kurozenaku Store</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/alpinejs" defer></script>
@@ -11,27 +11,30 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+<style>
+body { background:#0a0a0a; }
+.glass {
+ backdrop-filter: blur(12px);
+ background: rgba(255,255,255,0.05);
+ border: 1px solid rgba(255,255,255,0.1);
+}
+.card:hover {
+ transform: translateY(-6px) scale(1.02);
+}
+</style>
 </head>
 
-<body class="bg-gradient-to-b from-black via-gray-900 to-black text-white">
+<body class="text-white">
 
-<div x-data="app()" x-init="init()" class="p-6 max-w-6xl mx-auto">
+<div x-data="app()" x-init="init()" class="p-6 max-w-7xl mx-auto">
 
 <!-- HEADER -->
-<div class="flex justify-between items-center mb-6">
-<h1 class="text-3xl font-bold">GUNDAM STORE</h1>
+<div class="flex justify-between mb-6">
+<h1 class="text-3xl font-bold">KUROZENAKU</h1>
 
-<div class="flex gap-2 items-center">
-
-<span x-show="user" x-text="user.displayName"></span>
-
-<button @click="view='cart'" class="bg-white/10 px-3 py-2 rounded">
-Cart (<span x-text="cart.length"></span>)
-</button>
-
-<button @click="view='orders'" class="bg-white/10 px-3 py-2 rounded">
-Orders
-</button>
+<div class="flex gap-3">
+<button @click="view='orders'">Orders</button>
 
 <button x-show="isAdmin" @click="view='admin'" class="bg-yellow-400 text-black px-3 py-2 rounded">
 Admin
@@ -44,28 +47,34 @@ Login
 <button x-show="user" @click="logout" class="bg-red-500 px-3 py-2 rounded">
 Logout
 </button>
-
 </div>
 </div>
 
-<!-- PRODUCTS -->
-<div x-show="view==='shop'" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+<!-- SHOP -->
+<div x-show="view==='shop'" class="grid grid-cols-2 md:grid-cols-4 gap-6">
 
 <template x-for="p in products" :key="p.id">
-<div class="bg-white/10 p-3 rounded">
+<div class="glass p-4 rounded-xl card">
 
 <img :src="p.image" class="h-40 w-full object-contain">
 
 <h2 x-text="p.name"></h2>
 <p>₹<span x-text="p.price"></span></p>
 
-<p class="text-xs">Stock: <span x-text="p.stock"></span></p>
+<p class="text-xs"
+:class="p.stock==0 && !p.preorder ? 'text-red-400' : p.preorder ? 'text-yellow-400':'text-green-400'">
 
-<button @click="addToCart(p)" class="bg-yellow-400 text-black w-full mt-2 py-1">
-Add to Cart
-</button>
+<span x-text="
+p.stock==0 && !p.preorder ? 'SOLD OUT' :
+p.preorder ? 'PREORDER' :
+'IN STOCK'
+"></span>
 
-<button @click="buyNow(p)" class="bg-white text-black w-full mt-2 py-1">
+</p>
+
+<button @click="buyNow(p)"
+:disabled="p.stock==0 && !p.preorder"
+class="bg-white text-black w-full mt-2 py-1 rounded">
 Buy Now
 </button>
 
@@ -74,45 +83,48 @@ Buy Now
 
 </div>
 
-<!-- CART -->
-<div x-show="view==='cart'">
-<h2 class="text-xl mb-4">Cart</h2>
-
-<template x-for="item in cart">
-<div class="flex justify-between border-b py-2">
-<span x-text="item.name"></span>
-<span>₹<span x-text="item.price"></span></span>
-</div>
-</template>
-
-<button @click="checkoutCart()" class="bg-green-500 px-4 py-2 mt-4">
-Checkout
-</button>
-</div>
-
 <!-- ORDERS -->
 <div x-show="view==='orders'">
-<h2 class="text-xl mb-4">Orders</h2>
 
-<template x-for="o in orders">
-<div class="border p-2 mb-2">
-<p x-text="o.productId"></p>
-<p x-text="o.status"></p>
+<template x-for="o in orders" :key="o.id">
+<div class="glass p-4 mb-3 rounded">
+
+<p class="font-semibold" x-text="o.productName"></p>
+
+<p>Status: <span x-text="o.status"></span></p>
+
+<p>Total: ₹<span x-text="o.totalPrice"></span></p>
+
+<p class="text-yellow-400" x-show="o.type==='PREORDER'">
+PREORDER ITEM
+</p>
+
+<p x-show="o.deliveryDate">
+Delivery: <span x-text="o.deliveryDate"></span>
+</p>
+
 </div>
 </template>
 
 </div>
 
 <!-- ADMIN -->
-<div x-show="view==='admin'">
-<h2 class="text-xl mb-4">Admin Panel</h2>
+<div x-show="view==='admin'" class="glass p-4 rounded">
 
-<input x-model="name" placeholder="Name" class="text-black p-2">
-<input x-model="price" placeholder="Price" class="text-black p-2">
-<input x-model="stock" placeholder="Stock" class="text-black p-2">
-<input x-model="image" placeholder="Image URL" class="text-black p-2">
+<h2 class="mb-3">Add Product</h2>
 
-<button @click="addProduct()" class="bg-blue-500 px-4 py-2">
+<input x-model="name" placeholder="Name" class="text-black p-2 mb-2 w-full">
+<input x-model="price" placeholder="Price" class="text-black p-2 mb-2 w-full">
+<input x-model="stock" placeholder="Stock" class="text-black p-2 mb-2 w-full">
+<input x-model="image" placeholder="Image URL" class="text-black p-2 mb-2 w-full">
+<input x-model="deliveryDate" placeholder="Delivery Date (YYYY-MM-DD)" class="text-black p-2 mb-2 w-full">
+
+<label class="flex gap-2 items-center">
+<input type="checkbox" x-model="preorder">
+Preorder Product
+</label>
+
+<button @click="addProduct()" class="bg-blue-500 px-4 py-2 mt-3 rounded">
 Add Product
 </button>
 
@@ -122,9 +134,9 @@ Add Product
 
 <script>
 firebase.initializeApp({
- apiKey: "AIzaSyByLURDPjEbLepc3Wz3O1MAYYLXSeu04Zg",
-  authDomain: "kurozenaku-gundam-store.firebaseapp.com",
-  projectId: "kurozenaku-gundam-store"
+ apiKey:"AIzaSy...",
+ authDomain:"kurozenaku-gundam-store.firebaseapp.com",
+ projectId:"kurozenaku-gundam-store"
 });
 
 const auth = firebase.auth();
@@ -138,27 +150,21 @@ user:null,
 isAdmin:false,
 
 products:[],
-cart:[],
 orders:[],
 
-name:'',price:'',stock:'',image:'',
+name:'',price:'',stock:'',image:'',deliveryDate:'',
+preorder:false,
 
 init(){
 
-auth.onAuthStateChanged(async u=>{
- this.user = u;
- this.isAdmin = u && u.email === "vedantbhalge2006@gmail.com";
-
- if(u){
-  this.loadOrders();
- }
+auth.onAuthStateChanged(u=>{
+ this.user=u;
+ this.isAdmin = u && u.email==="vedantbhalge2006@gmail.com";
+ if(u) this.loadOrders();
 });
 
 db.collection("products").onSnapshot(snap=>{
- this.products = snap.docs.map(d=>({
-  id:d.id,
-  ...d.data()
- }));
+ this.products = snap.docs.map(d=>({id:d.id,...d.data()}));
 });
 
 },
@@ -171,18 +177,12 @@ logout(){
  auth.signOut();
 },
 
-addToCart(p){
- this.cart.push(p);
-},
-
-async checkoutCart(){
- for(let item of this.cart){
-  await this.buyNow(item);
- }
- this.cart = [];
-},
-
 async buyNow(p){
+
+if(p.stock==0 && !p.preorder){
+ alert("Sold Out");
+ return;
+}
 
 const token = await this.user.getIdToken();
 
@@ -216,7 +216,7 @@ const rzp = new Razorpay({
    })
   });
 
-  alert("Payment Success");
+  alert("Payment Successful");
  }
 });
 
@@ -238,9 +238,12 @@ await db.collection("products").add({
  name:this.name,
  price:Number(this.price),
  stock:Number(this.stock),
- image:this.image
+ image:this.image,
+ preorder:this.preorder,
+ deliveryDate:this.deliveryDate
 });
-alert("Added");
+
+alert("Product Added");
 }
 
 }
