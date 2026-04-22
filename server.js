@@ -10,7 +10,7 @@ app.use(cors());
 app.use(express.json());
 
 admin.initializeApp({
- credential: admin.credential.cert(require("./serviceAccount.json"))
+ credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT))
 });
 
 const db = admin.firestore();
@@ -55,8 +55,7 @@ app.post("/create-order", verifyUser, async (req,res)=>{
 app.post("/verify", verifyUser, async (req,res)=>{
  const {order_id,payment_id,signature} = req.body;
 
- const expected = crypto
-  .createHmac("sha256",process.env.RAZORPAY_SECRET)
+ const expected = crypto.createHmac("sha256",process.env.RAZORPAY_SECRET)
   .update(order_id + "|" + payment_id)
   .digest("hex");
 
@@ -67,6 +66,14 @@ app.post("/verify", verifyUser, async (req,res)=>{
  });
 
  res.send({success:true});
+});
+
+app.get("/orders", verifyUser, async (req,res)=>{
+ const snap = await db.collection("orders")
+  .where("userId","==",req.user.uid)
+  .get();
+
+ res.json(snap.docs.map(d=>d.data()));
 });
 
 app.listen(5000, ()=>console.log("Server running"));
