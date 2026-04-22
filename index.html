@@ -112,7 +112,7 @@ async buy(p){
 
   const token = await this.user.getIdToken();
 
-  const res = await fetch("http://localhost:5000/create-order",{
+  const res = await fetch("https://kurozenaku-gundam-store.onrender.com/create-order",{
     method:"POST",
     headers:{
       "Content-Type":"application/json",
@@ -129,7 +129,7 @@ async buy(p){
     order_id:order.id,
 
     handler: async (response)=>{
-      await fetch("http://localhost:5000/verify",{
+      await fetch("https://kurozenaku-gundam-store.onrender.com/verify",{
         method:"POST",
         headers:{
           "Content-Type":"application/json",
