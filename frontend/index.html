@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Gundam Store</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/alpinejs" defer></script>
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script src="cart.js"></script>
+</head>
+
+<body class="bg-black text-white">
+
+<div x-data="{...shop(), ...CartSystem()}" x-init="init()" class="p-6 max-w-6xl mx-auto">
+
+<!-- HEADER -->
+<div class="flex justify-between mb-6">
+<h1 class="text-2xl font-bold">GUNDAM STORE</h1>
+
+<div>
+<span x-show="user" x-text="user.displayName"></span>
+
+<button @click="login" x-show="!user" class="bg-white text-black px-4 py-2">Login</button>
+<button @click="logout" x-show="user" class="bg-red-500 px-4 py-2">Logout</button>
+</div>
+</div>
+
+<!-- CART -->
+<div class="bg-gray-800 p-4 rounded mb-6">
+<h2 class="font-bold mb-2">🛒 Cart</h2>
+
+<template x-for="item in cart">
+<div class="flex justify-between border-b py-2">
+<span x-text="item.name"></span>
+<span>₹<span x-text="item.price"></span> x <span x-text="item.qty"></span></span>
+<button @click="remove(item.id)" class="text-red-400">X</button>
+</div>
+</template>
+
+<p class="mt-2">Total: ₹<span x-text="total"></span></p>
+<button @click="clear()" class="bg-red-500 px-3 py-1 mt-2">Clear</button>
+</div>
+
+<!-- PRODUCTS -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+<template x-for="p in products" :key="p.id">
+<div class="bg-white text-black p-3 rounded">
+
+<img :src="p.image" class="h-40 w-full object-contain">
+
+<h2 x-text="p.name"></h2>
+<p>₹<span x-text="p.price"></span></p>
+
+<button @click="add(p)" class="bg-yellow-400 w-full mt-2 py-2">
+Add to Cart
+</button>
+
+<button @click="buy(p)" class="bg-black text-white w-full mt-2 py-2">
+Buy Now
+</button>
+
+</div>
+</template>
+
+</div>
+
+</div>
+
+<script>
+firebase.initializeApp({
+  apiKey: "YOUR_FIREBASE_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID"
+});
+
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+function shop(){
+return{
+
+products:[],
+user:null,
+
+init(){
+  auth.onAuthStateChanged(u => this.user = u);
+
+  db.collection("products").onSnapshot(snap=>{
+    this.products = snap.docs.map(d=>({
+      id:d.id,
+      ...d.data()
+    }));
+  });
+},
+
+login(){
+  auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+},
+
+logout(){
+  auth.signOut();
+},
+
+async buy(p){
+  if(!this.user) return alert("Login first");
+
+  const token = await this.user.getIdToken();
+
+  const res = await fetch("http://localhost:5000/create-order",{
+    method:"POST",
+    headers:{
+      "Content-Type":"application/json",
+      "Authorization":"Bearer "+token
+    },
+    body:JSON.stringify({productId:p.id})
+  });
+
+  const order = await res.json();
+
+  const rzp = new Razorpay({
+    key:"YOUR_RAZORPAY_KEY",
+    amount:order.amount,
+    order_id:order.id,
+
+    handler: async (response)=>{
+      await fetch("http://localhost:5000/verify",{
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json",
+          "Authorization":"Bearer "+token
+        },
+        body:JSON.stringify({
+          order_id:order.id,
+          payment_id:response.razorpay_payment_id,
+          signature:response.razorpay_signature
+        })
+      });
+
+      alert("Payment Success");
+    }
+  });
+
+  rzp.open();
+}
+
+}
+}
+</script>
+
+</body>
+</html>
