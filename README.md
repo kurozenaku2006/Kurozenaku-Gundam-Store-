@@ -1,1 +1,1 @@
-# Kurozenaku-Gundam-Store-
+# Kurozenaku-Gundam-Store
