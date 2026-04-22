@@ -45,8 +45,11 @@ app.post("/create-order", verifyUser, async (req,res)=>{
  await db.collection("orders").doc(order.id).set({
   userId:req.user.uid,
   productId,
-  price:p.price,
-  status:"PENDING"
+  productName:p.name,
+  totalPrice:p.price,
+  type: p.preorder ? "PREORDER" : "NORMAL",
+  status:"PENDING",
+  deliveryDate:p.deliveryDate || null
  });
 
  res.json(order);
@@ -59,7 +62,9 @@ app.post("/verify", verifyUser, async (req,res)=>{
   .update(order_id + "|" + payment_id)
   .digest("hex");
 
- if(expected !== signature) return res.status(400).send("Invalid");
+ if(expected !== signature){
+  return res.status(400).send("Invalid signature");
+ }
 
  await db.collection("orders").doc(order_id).update({
   status:"PAID"
@@ -73,7 +78,10 @@ app.get("/orders", verifyUser, async (req,res)=>{
   .where("userId","==",req.user.uid)
   .get();
 
- res.json(snap.docs.map(d=>d.data()));
+ res.json(snap.docs.map(d=>({
+  id:d.id,
+  ...d.data()
+ })));
 });
 
 app.listen(5000, ()=>console.log("Server running"));
