@@ -30,7 +30,7 @@ body { background:#0a0a0a; }
 <div x-data="app()" x-init="init()" class="p-6 max-w-7xl mx-auto">
 
 <!-- HEADER -->
-<div class="flex justify-between mb-6">
+<div class="flex justify-between mb-6 items-center">
 <h1 class="text-3xl font-bold">KUROZENAKU</h1>
 
 <div class="flex gap-3 items-center">
@@ -39,15 +39,18 @@ body { background:#0a0a0a; }
 
 <button @click="view='orders'">Orders</button>
 
-<button x-show="isAdmin" @click="view='admin'" class="bg-yellow-400 text-black px-3 py-2 rounded">
+<button x-show="isAdmin" @click="view='admin'"
+class="bg-yellow-400 text-black px-3 py-2 rounded">
 Admin
 </button>
 
-<button x-show="!user" @click="login" class="bg-white text-black px-3 py-2 rounded">
+<button x-show="!user" @click="login"
+class="bg-white text-black px-3 py-2 rounded">
 Login
 </button>
 
-<button x-show="user" @click="logout" class="bg-red-500 px-3 py-2 rounded">
+<button x-show="user" @click="logout"
+class="bg-red-500 px-3 py-2 rounded">
 Logout
 </button>
 
@@ -113,20 +116,22 @@ Delivery: <span x-text="o.deliveryDate"></span>
 <!-- ADMIN -->
 <div x-show="view==='admin'" class="glass p-4 rounded">
 
-<h2>Add Product</h2>
+<h2 class="text-xl mb-3">Admin Panel</h2>
 
-<input x-model="name" placeholder="Name" class="text-black p-2 w-full">
-<input x-model="price" placeholder="Price" class="text-black p-2 w-full">
-<input x-model="stock" placeholder="Stock" class="text-black p-2 w-full">
-<input x-model="image" placeholder="Image URL" class="text-black p-2 w-full">
-<input x-model="deliveryDate" placeholder="Delivery Date" class="text-black p-2 w-full">
+<input x-model="name" placeholder="Name" class="text-black p-2 mb-2 w-full">
+<input x-model="price" placeholder="Price" class="text-black p-2 mb-2 w-full">
+<input x-model="stock" placeholder="Stock" class="text-black p-2 mb-2 w-full">
+<input x-model="image" placeholder="Image URL" class="text-black p-2 mb-2 w-full">
+<input x-model="deliveryDate" placeholder="Delivery Date (YYYY-MM-DD)" class="text-black p-2 mb-2 w-full">
 
-<label>
-<input type="checkbox" x-model="preorder"> Preorder
+<label class="flex items-center gap-2">
+<input type="checkbox" x-model="preorder">
+Preorder Product
 </label>
 
-<button @click="addProduct()" class="bg-blue-500 px-4 py-2 mt-2">
-Add
+<button @click="addProduct()"
+class="bg-blue-500 px-4 py-2 mt-3 rounded">
+Add Product
 </button>
 
 </div>
@@ -134,9 +139,8 @@ Add
 </div>
 
 <script>
-/* 🔥 REPLACE WITH YOUR REAL CONFIG */
 firebase.initializeApp({
- apiKey: "AIzaSyByLURDPjEbLepc3Wz3O1MAYYLXSeu04Zg",
+apiKey: "AIzaSyByLURDPjEbLepc3Wz3O1MAYYLXSeu04Zg",
   authDomain: "kurozenaku-gundam-store.firebaseapp.com",
   projectId: "kurozenaku-gundam-store"
 });
@@ -159,39 +163,81 @@ preorder:false,
 
 init(){
 
-// ✅ HANDLE REDIRECT LOGIN
-auth.getRedirectResult().then(result=>{
- if(result.user){
-  this.user = result.user;
- }
-}).catch(e=>console.error(e));
+// HANDLE REDIRECT LOGIN
+auth.getRedirectResult().catch(()=>{});
 
-// ✅ AUTH STATE
+// AUTH STATE
 auth.onAuthStateChanged(u=>{
  this.user = u;
- this.isAdmin = u && u.email==="vedantbhalge2006@gmail.com";
+ console.log("Logged in:", u?.email);
+
+ this.isAdmin = u && u.email === "vedantbhalge2006@gmail.com";
+
  if(u) this.loadOrders();
 });
 
-// PRODUCTS
+// LOAD PRODUCTS
 db.collection("products").onSnapshot(snap=>{
  this.products = snap.docs.map(d=>({id:d.id,...d.data()}));
 });
 
 },
 
-// ✅ FIXED LOGIN
+// LOGIN FIXED
 async login(){
  try{
   await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
- }catch(e){
-  console.warn("Popup blocked, switching to redirect");
+ }catch{
   await auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());
  }
 },
 
 logout(){
  auth.signOut();
+},
+
+// 🔥 FIXED ADMIN ADD
+async addProduct(){
+ try{
+
+  if(!this.isAdmin){
+    alert("❌ Not admin");
+    return;
+  }
+
+  if(!this.name || !this.price){
+    alert("Fill name & price");
+    return;
+  }
+
+  const data = {
+    name:this.name,
+    price:Number(this.price),
+    stock:Number(this.stock || 0),
+    image:this.image || "",
+    preorder:this.preorder,
+    deliveryDate:this.deliveryDate || null,
+    createdAt:new Date()
+  };
+
+  console.log("Adding:", data);
+
+  await db.collection("products").add(data);
+
+  alert("✅ Product Added");
+
+  // RESET
+  this.name='';
+  this.price='';
+  this.stock='';
+  this.image='';
+  this.deliveryDate='';
+  this.preorder=false;
+
+ }catch(e){
+  console.error(e);
+  alert("Error: " + e.message);
+ }
 },
 
 async buyNow(p){
@@ -238,7 +284,7 @@ const rzp = new Razorpay({
    })
   });
 
-  alert("Payment Successful");
+  alert("Payment Success");
  }
 });
 
@@ -253,18 +299,6 @@ const res = await fetch("https://kurozenaku-gundam-store.onrender.com/orders",{
 });
 
 this.orders = await res.json();
-},
-
-async addProduct(){
-await db.collection("products").add({
- name:this.name,
- price:Number(this.price),
- stock:Number(this.stock),
- image:this.image,
- preorder:this.preorder,
- deliveryDate:this.deliveryDate
-});
-alert("Added");
 }
 
 }
