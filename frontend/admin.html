@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Admin Panel</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/alpinejs" defer></script>
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+</head>
+
+<body class="bg-gray-900 text-white p-6">
+
+<div x-data="admin()" x-init="init()">
+
+<h1 class="text-xl mb-4">ADMIN PANEL</h1>
+
+<button x-show="!user" @click="login" class="bg-white text-black px-4 py-2">Login</button>
+
+<div x-show="isAdmin">
+
+<input x-model="name" placeholder="Name" class="text-black p-2">
+<input x-model="price" placeholder="Price" class="text-black p-2">
+<input type="file" @change="upload">
+
+<button @click="add" class="bg-blue-500 px-4 py-2">Add Product</button>
+
+<hr class="my-6">
+
+<h2>Orders</h2>
+
+<template x-for="o in orders">
+<div class="border p-2 my-2">
+<p x-text="o.productId"></p>
+<p x-text="o.status"></p>
+</div>
+</template>
+
+</div>
+
+</div>
+
+<script>
+const ADMIN_EMAIL = "YOUR_EMAIL";
+
+firebase.initializeApp({
+  apiKey: "YOUR_FIREBASE_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket:"YOUR_BUCKET"
+});
+
+const auth = firebase.auth();
+const db = firebase.firestore();
+const storage = firebase.storage();
+
+function admin(){
+return{
+
+user:null,
+isAdmin:false,
+orders:[],
+name:'',price:'',image:'',
+
+init(){
+  auth.onAuthStateChanged(u=>{
+    this.user = u;
+    this.isAdmin = u && u.email === ADMIN_EMAIL;
+
+    if(this.isAdmin){
+      db.collection("orders").onSnapshot(snap=>{
+        this.orders = snap.docs.map(d=>d.data());
+      });
+    }
+  });
+},
+
+login(){
+  auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+},
+
+async upload(e){
+  const file = e.target.files[0];
+  const ref = storage.ref("products/"+Date.now());
+  await ref.put(file);
+  this.image = await ref.getDownloadURL();
+},
+
+async add(){
+  await db.collection("products").add({
+    name:this.name,
+    price:Number(this.price),
+    image:this.image
+  });
+  alert("Added");
+}
+
+}
+}
+</script>
+
+</body>
+</html>
