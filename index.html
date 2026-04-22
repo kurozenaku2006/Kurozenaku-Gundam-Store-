@@ -33,7 +33,10 @@ body { background:#0a0a0a; }
 <div class="flex justify-between mb-6">
 <h1 class="text-3xl font-bold">KUROZENAKU</h1>
 
-<div class="flex gap-3">
+<div class="flex gap-3 items-center">
+
+<span x-show="user" x-text="user.displayName"></span>
+
 <button @click="view='orders'">Orders</button>
 
 <button x-show="isAdmin" @click="view='admin'" class="bg-yellow-400 text-black px-3 py-2 rounded">
@@ -47,6 +50,7 @@ Login
 <button x-show="user" @click="logout" class="bg-red-500 px-3 py-2 rounded">
 Logout
 </button>
+
 </div>
 </div>
 
@@ -89,10 +93,8 @@ Buy Now
 <template x-for="o in orders" :key="o.id">
 <div class="glass p-4 mb-3 rounded">
 
-<p class="font-semibold" x-text="o.productName"></p>
-
+<p x-text="o.productName"></p>
 <p>Status: <span x-text="o.status"></span></p>
-
 <p>Total: ₹<span x-text="o.totalPrice"></span></p>
 
 <p class="text-yellow-400" x-show="o.type==='PREORDER'">
@@ -111,21 +113,20 @@ Delivery: <span x-text="o.deliveryDate"></span>
 <!-- ADMIN -->
 <div x-show="view==='admin'" class="glass p-4 rounded">
 
-<h2 class="mb-3">Add Product</h2>
+<h2>Add Product</h2>
 
-<input x-model="name" placeholder="Name" class="text-black p-2 mb-2 w-full">
-<input x-model="price" placeholder="Price" class="text-black p-2 mb-2 w-full">
-<input x-model="stock" placeholder="Stock" class="text-black p-2 mb-2 w-full">
-<input x-model="image" placeholder="Image URL" class="text-black p-2 mb-2 w-full">
-<input x-model="deliveryDate" placeholder="Delivery Date (YYYY-MM-DD)" class="text-black p-2 mb-2 w-full">
+<input x-model="name" placeholder="Name" class="text-black p-2 w-full">
+<input x-model="price" placeholder="Price" class="text-black p-2 w-full">
+<input x-model="stock" placeholder="Stock" class="text-black p-2 w-full">
+<input x-model="image" placeholder="Image URL" class="text-black p-2 w-full">
+<input x-model="deliveryDate" placeholder="Delivery Date" class="text-black p-2 w-full">
 
-<label class="flex gap-2 items-center">
-<input type="checkbox" x-model="preorder">
-Preorder Product
+<label>
+<input type="checkbox" x-model="preorder"> Preorder
 </label>
 
-<button @click="addProduct()" class="bg-blue-500 px-4 py-2 mt-3 rounded">
-Add Product
+<button @click="addProduct()" class="bg-blue-500 px-4 py-2 mt-2">
+Add
 </button>
 
 </div>
@@ -133,10 +134,11 @@ Add Product
 </div>
 
 <script>
+/* 🔥 REPLACE WITH YOUR REAL CONFIG */
 firebase.initializeApp({
- apiKey:"AIzaSy...",
- authDomain:"kurozenaku-gundam-store.firebaseapp.com",
- projectId:"kurozenaku-gundam-store"
+ apiKey: "AIzaSyByLURDPjEbLepc3Wz3O1MAYYLXSeu04Zg",
+  authDomain: "kurozenaku-gundam-store.firebaseapp.com",
+  projectId: "kurozenaku-gundam-store"
 });
 
 const auth = firebase.auth();
@@ -157,20 +159,35 @@ preorder:false,
 
 init(){
 
+// ✅ HANDLE REDIRECT LOGIN
+auth.getRedirectResult().then(result=>{
+ if(result.user){
+  this.user = result.user;
+ }
+}).catch(e=>console.error(e));
+
+// ✅ AUTH STATE
 auth.onAuthStateChanged(u=>{
- this.user=u;
+ this.user = u;
  this.isAdmin = u && u.email==="vedantbhalge2006@gmail.com";
  if(u) this.loadOrders();
 });
 
+// PRODUCTS
 db.collection("products").onSnapshot(snap=>{
  this.products = snap.docs.map(d=>({id:d.id,...d.data()}));
 });
 
 },
 
-login(){
- auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+// ✅ FIXED LOGIN
+async login(){
+ try{
+  await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+ }catch(e){
+  console.warn("Popup blocked, switching to redirect");
+  await auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());
+ }
 },
 
 logout(){
@@ -178,6 +195,11 @@ logout(){
 },
 
 async buyNow(p){
+
+if(!this.user){
+ alert("Login first");
+ return;
+}
 
 if(p.stock==0 && !p.preorder){
  alert("Sold Out");
@@ -198,7 +220,7 @@ const res = await fetch("https://kurozenaku-gundam-store.onrender.com/create-ord
 const order = await res.json();
 
 const rzp = new Razorpay({
- key:"YOUR_RAZORPAY_KEY",
+ key:"rzp_test_SgYsK7uNNdSaph",
  amount:order.amount,
  order_id:order.id,
 
@@ -242,8 +264,7 @@ await db.collection("products").add({
  preorder:this.preorder,
  deliveryDate:this.deliveryDate
 });
-
-alert("Product Added");
+alert("Added");
 }
 
 }
