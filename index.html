@@ -11,128 +11,171 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-
-<style>
-body { background:#0a0a0a; }
-.glass {
- backdrop-filter: blur(12px);
- background: rgba(255,255,255,0.05);
- border: 1px solid rgba(255,255,255,0.1);
-}
-.card:hover {
- transform: translateY(-6px) scale(1.02);
-}
-</style>
 </head>
 
-<body class="text-white">
+<body class="bg-gradient-to-b from-black via-gray-900 to-black text-white min-h-screen">
 
 <div x-data="app()" x-init="init()" class="p-6 max-w-7xl mx-auto">
 
 <!-- HEADER -->
-<div class="flex justify-between mb-6 items-center">
+<div class="flex justify-between items-center mb-6">
 <h1 class="text-3xl font-bold">KUROZENAKU</h1>
 
-<div class="flex gap-3 items-center">
+<div class="flex gap-2 items-center">
 
-<span x-show="user" x-text="user.displayName"></span>
+<input x-model="search" placeholder="Search" class="text-black px-2 py-1 rounded">
 
-<button @click="view='orders'">Orders</button>
+<button @click="view='cart'" class="bg-white/10 px-3 py-2 rounded">
+Cart (<span x-text="cart.length"></span>)
+</button>
 
-<button x-show="isAdmin" @click="view='admin'"
-class="bg-yellow-400 text-black px-3 py-2 rounded">
+<button @click="view='orders'" class="bg-white/10 px-3 py-2 rounded">
+Orders
+</button>
+
+<button x-show="isAdmin" @click="view='admin'" class="bg-yellow-400 text-black px-3 py-2 rounded">
 Admin
 </button>
 
-<button x-show="!user" @click="login"
-class="bg-white text-black px-3 py-2 rounded">
+<button x-show="!user" @click="login" class="bg-white text-black px-3 py-2 rounded">
 Login
 </button>
 
-<button x-show="user" @click="logout"
-class="bg-red-500 px-3 py-2 rounded">
+<button x-show="user" @click="logout" class="bg-red-500 px-3 py-2 rounded">
 Logout
 </button>
 
 </div>
 </div>
 
-<!-- SHOP -->
-<div x-show="view==='shop'" class="grid grid-cols-2 md:grid-cols-4 gap-6">
+<!-- CATEGORY FILTER -->
+<div class="flex gap-2 mb-4">
+<button @click="category='ALL'">All</button>
+<button @click="category='HG'">HG</button>
+<button @click="category='MG'">MG</button>
+<button @click="category='PG'">PG</button>
+</div>
 
-<template x-for="p in products" :key="p.id">
-<div class="glass p-4 rounded-xl card">
+<!-- PRODUCTS -->
+<div x-show="view==='shop'" class="grid grid-cols-2 md:grid-cols-4 gap-4">
 
-<img :src="p.image" class="h-40 w-full object-contain">
+<template x-for="p in filteredProducts()" :key="p.id">
+<div class="bg-white/10 p-3 rounded">
+
+<img :src="p.image" @click="openProduct(p)" class="h-40 w-full object-contain cursor-pointer">
 
 <h2 x-text="p.name"></h2>
 <p>₹<span x-text="p.price"></span></p>
+<p class="text-xs" x-text="p.category"></p>
 
-<p class="text-xs"
-:class="p.stock==0 && !p.preorder ? 'text-red-400' : p.preorder ? 'text-yellow-400':'text-green-400'">
+<button @click="addToCart(p)" class="bg-yellow-400 text-black w-full mt-2 py-1">
+Add to Cart
+</button>
 
-<span x-text="
-p.stock==0 && !p.preorder ? 'SOLD OUT' :
-p.preorder ? 'PREORDER' :
-'IN STOCK'
-"></span>
+<button @click="toggleWish(p)" class="w-full mt-1">❤️</button>
 
-</p>
-
-<button @click="buyNow(p)"
-:disabled="p.stock==0 && !p.preorder"
-class="bg-white text-black w-full mt-2 py-1 rounded">
+<button @click="buyNow(p)" class="bg-white text-black w-full mt-2 py-1">
 Buy Now
 </button>
+
+<div x-show="isAdmin" class="mt-2 text-xs">
+<button @click="edit(p)">Edit</button>
+<button @click="del(p.id)" class="text-red-400">Delete</button>
+</div>
 
 </div>
 </template>
 
+</div>
+
+<!-- PRODUCT MODAL -->
+<div x-show="view==='product'" class="fixed inset-0 bg-black/80 flex items-center justify-center">
+
+<div class="bg-white/10 p-6 rounded w-96">
+
+<img :src="selected.image" class="h-40 mx-auto">
+
+<h2 x-text="selected.name"></h2>
+<p>₹<span x-text="selected.price"></span></p>
+
+<button @click="buyNow(selected)" class="bg-white text-black w-full mt-2 py-2">
+Buy Now
+</button>
+
+<button @click="view='shop'" class="mt-2">Close</button>
+
+</div>
+</div>
+
+<!-- CART -->
+<div x-show="view==='cart'">
+<h2 class="text-xl mb-4">Cart</h2>
+
+<template x-for="item in cart">
+<div class="flex justify-between border-b py-2">
+
+<span x-text="item.name"></span>
+
+<div>
+<button @click="item.qty++">+</button>
+<span x-text="item.qty"></span>
+<button @click="item.qty--">-</button>
+</div>
+
+<span>₹<span x-text="item.price * item.qty"></span></span>
+
+</div>
+</template>
+
+<p class="mt-3">Total: ₹<span x-text="total()"></span></p>
 </div>
 
 <!-- ORDERS -->
 <div x-show="view==='orders'">
+<h2 class="text-xl mb-4">Orders</h2>
 
-<template x-for="o in orders" :key="o.id">
-<div class="glass p-4 mb-3 rounded">
-
+<template x-for="o in orders">
+<div class="border p-2 mb-2">
 <p x-text="o.productName"></p>
 <p>Status: <span x-text="o.status"></span></p>
-<p>Total: ₹<span x-text="o.totalPrice"></span></p>
-
-<p class="text-yellow-400" x-show="o.type==='PREORDER'">
-PREORDER ITEM
-</p>
-
-<p x-show="o.deliveryDate">
-Delivery: <span x-text="o.deliveryDate"></span>
-</p>
-
 </div>
 </template>
-
 </div>
 
 <!-- ADMIN -->
-<div x-show="view==='admin'" class="glass p-4 rounded">
+<div x-show="view==='admin'" class="bg-white/10 p-4 rounded">
 
-<h2 class="text-xl mb-3">Admin Panel</h2>
+<h2 class="text-xl mb-4">Admin Panel</h2>
 
-<input x-model="name" placeholder="Name" class="text-black p-2 mb-2 w-full">
-<input x-model="price" placeholder="Price" class="text-black p-2 mb-2 w-full">
-<input x-model="stock" placeholder="Stock" class="text-black p-2 mb-2 w-full">
-<input x-model="image" placeholder="Image URL" class="text-black p-2 mb-2 w-full">
-<input x-model="deliveryDate" placeholder="Delivery Date (YYYY-MM-DD)" class="text-black p-2 mb-2 w-full">
+<input x-model="name" placeholder="Name" class="text-black p-2 w-full mb-2">
+<input x-model="price" placeholder="Price" class="text-black p-2 w-full mb-2">
+<input x-model="stock" placeholder="Stock" class="text-black p-2 w-full mb-2">
+<input x-model="image" placeholder="Image URL" class="text-black p-2 w-full mb-2">
+<input x-model="categoryInput" placeholder="Category HG/MG/PG" class="text-black p-2 w-full mb-2">
 
-<label class="flex items-center gap-2">
-<input type="checkbox" x-model="preorder">
-Preorder Product
-</label>
-
-<button @click="addProduct()"
-class="bg-blue-500 px-4 py-2 mt-3 rounded">
+<button x-show="!editing" @click="add()" class="bg-blue-500 px-4 py-2">
 Add Product
 </button>
+
+<button x-show="editing" @click="update()" class="bg-green-500 px-4 py-2">
+Update Product
+</button>
+
+<h2 class="mt-6">Orders</h2>
+
+<template x-for="o in allOrders">
+<div class="border p-2 mt-2">
+
+<p x-text="o.productName"></p>
+
+<select @change="updateOrder(o.id,$event.target.value)">
+<option>PAID</option>
+<option>SHIPPED</option>
+<option>DELIVERED</option>
+</select>
+
+</div>
+</template>
 
 </div>
 
@@ -140,9 +183,9 @@ Add Product
 
 <script>
 firebase.initializeApp({
-apiKey: "AIzaSyByLURDPjEbLepc3Wz3O1MAYYLXSeu04Zg",
-  authDomain: "kurozenaku-gundam-store.firebaseapp.com",
-  projectId: "kurozenaku-gundam-store"
+ apiKey: "AIzaSyByLURDPjEbLepc3Wz3O1MAYYLXSeu04Zg",
+ authDomain: "kurozenaku-gundam-store.firebaseapp.com",
+ projectId: "kurozenaku-gundam-store"
 });
 
 const auth = firebase.auth();
@@ -157,148 +200,185 @@ isAdmin:false,
 
 products:[],
 orders:[],
+allOrders:[],
 
-name:'',price:'',stock:'',image:'',deliveryDate:'',
-preorder:false,
+cart:JSON.parse(localStorage.getItem("cart")||"[]"),
+wishlist:JSON.parse(localStorage.getItem("wish")||"[]"),
+
+search:'',
+category:'ALL',
+selected:null,
+
+name:'',price:'',stock:'',image:'',categoryInput:'',
+editing:null,
 
 init(){
 
-// HANDLE REDIRECT LOGIN
-auth.getRedirectResult().catch(()=>{});
-
-// AUTH STATE
 auth.onAuthStateChanged(u=>{
- this.user = u;
- console.log("Logged in:", u?.email);
+ this.user=u;
+ this.isAdmin=u && u.email==="vedantbhalge2006@gmail.com";
 
- this.isAdmin = u && u.email === "vedantbhalge2006@gmail.com";
-
- if(u) this.loadOrders();
+ if(u){
+  this.loadOrders();
+  if(this.isAdmin) this.loadAdminOrders();
+ }
 });
 
-// LOAD PRODUCTS
 db.collection("products").onSnapshot(snap=>{
  this.products = snap.docs.map(d=>({id:d.id,...d.data()}));
 });
 
 },
 
-// LOGIN FIXED
-async login(){
- try{
-  await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
- }catch{
-  await auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());
- }
+login(){
+ auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
 },
 
 logout(){
  auth.signOut();
 },
 
-// 🔥 FIXED ADMIN ADD
-async addProduct(){
- try{
+filteredProducts(){
+ return this.products.filter(p=>
+  p.name.toLowerCase().includes(this.search.toLowerCase()) &&
+  (this.category==='ALL'||p.category===this.category)
+ );
+},
 
-  if(!this.isAdmin){
-    alert("❌ Not admin");
-    return;
-  }
+addToCart(p){
+ let item=this.cart.find(i=>i.id===p.id);
+ if(item) item.qty++;
+ else this.cart.push({...p,qty:1});
 
-  if(!this.name || !this.price){
-    alert("Fill name & price");
-    return;
-  }
+ localStorage.setItem("cart",JSON.stringify(this.cart));
+},
 
-  const data = {
-    name:this.name,
-    price:Number(this.price),
-    stock:Number(this.stock || 0),
-    image:this.image || "",
-    preorder:this.preorder,
-    deliveryDate:this.deliveryDate || null,
-    createdAt:new Date()
-  };
+total(){
+ return this.cart.reduce((t,i)=>t+i.price*i.qty,0);
+},
 
-  console.log("Adding:", data);
+toggleWish(p){
+ let w=this.wishlist.find(i=>i.id===p.id);
+ if(w) this.wishlist=this.wishlist.filter(i=>i.id!==p.id);
+ else this.wishlist.push(p);
 
-  await db.collection("products").add(data);
+ localStorage.setItem("wish",JSON.stringify(this.wishlist));
+},
 
-  alert("✅ Product Added");
-
-  // RESET
-  this.name='';
-  this.price='';
-  this.stock='';
-  this.image='';
-  this.deliveryDate='';
-  this.preorder=false;
-
- }catch(e){
-  console.error(e);
-  alert("Error: " + e.message);
- }
+openProduct(p){
+ this.selected=p;
+ this.view='product';
 },
 
 async buyNow(p){
+ if(!this.user){ alert("Login first"); return; }
 
-if(!this.user){
- alert("Login first");
- return;
-}
+ const token=await this.user.getIdToken();
 
-if(p.stock==0 && !p.preorder){
- alert("Sold Out");
- return;
-}
+ const res=await fetch("https://kurozenaku-gundam-store.onrender.com/create-order",{
+  method:"POST",
+  headers:{
+   "Content-Type":"application/json",
+   "Authorization":"Bearer "+token
+  },
+  body:JSON.stringify({productId:p.id})
+ });
 
-const token = await this.user.getIdToken();
+ const order=await res.json();
 
-const res = await fetch("https://kurozenaku-gundam-store.onrender.com/create-order",{
- method:"POST",
- headers:{
-  "Content-Type":"application/json",
-  "Authorization":"Bearer "+token
- },
- body:JSON.stringify({productId:p.id})
-});
+ const rzp=new Razorpay({
+  key:"rzp_test_SgYsK7uNNdSaph",
+  amount:order.amount,
+  order_id:order.id,
 
-const order = await res.json();
+  handler: async (resp)=>{
+   await fetch("https://kurozenaku-gundam-store.onrender.com/verify",{
+    method:"POST",
+    headers:{
+     "Content-Type":"application/json",
+     "Authorization":"Bearer "+token
+    },
+    body:JSON.stringify({
+     order_id:order.id,
+     payment_id:resp.razorpay_payment_id,
+     signature:resp.razorpay_signature
+    })
+   });
 
-const rzp = new Razorpay({
- key:"rzp_test_SgYsK7uNNdSaph",
- amount:order.amount,
- order_id:order.id,
+   alert("Payment Successful");
+  }
+ });
 
- handler: async (response)=>{
-  await fetch("https://kurozenaku-gundam-store.onrender.com/verify",{
-   method:"POST",
-   headers:{
-    "Content-Type":"application/json",
-    "Authorization":"Bearer "+token
-   },
-   body:JSON.stringify({
-    order_id:order.id,
-    payment_id:response.razorpay_payment_id,
-    signature:response.razorpay_signature
-   })
-  });
-
-  alert("Payment Success");
- }
-});
-
-rzp.open();
+ rzp.open();
 },
 
 async loadOrders(){
-const token = await this.user.getIdToken();
+ const token=await this.user.getIdToken();
 
-const res = await fetch("https://kurozenaku-gundam-store.onrender.com/orders",{
- headers:{Authorization:"Bearer "+token}
-});
+ const res=await fetch("https://kurozenaku-gundam-store.onrender.com/orders",{
+  headers:{Authorization:"Bearer "+token}
+ });
 
-this.orders = await res.json();
+ this.orders=await res.json();
+},
+
+async loadAdminOrders(){
+ const token=await this.user.getIdToken();
+
+ const res=await fetch("https://kurozenaku-gundam-store.onrender.com/admin/orders",{
+  headers:{Authorization:"Bearer "+token}
+ });
+
+ this.allOrders=await res.json();
+},
+
+async add(){
+ await db.collection("products").add({
+  name:this.name,
+  price:Number(this.price),
+  stock:Number(this.stock),
+  image:this.image,
+  category:this.categoryInput
+ });
+},
+
+edit(p){
+ this.editing=p;
+ this.name=p.name;
+ this.price=p.price;
+ this.stock=p.stock;
+ this.image=p.image;
+ this.categoryInput=p.category;
+},
+
+async update(){
+ await db.collection("products").doc(this.editing.id).update({
+  name:this.name,
+  price:Number(this.price),
+  stock:Number(this.stock),
+  image:this.image,
+  category:this.categoryInput
+ });
+ this.editing=null;
+},
+
+async del(id){
+ await db.collection("products").doc(id).delete();
+},
+
+async updateOrder(id,status){
+ const token=await this.user.getIdToken();
+
+ await fetch("https://kurozenaku-gundam-store.onrender.com/admin/update-order",{
+  method:"POST",
+  headers:{
+   "Content-Type":"application/json",
+   "Authorization":"Bearer "+token
+  },
+  body:JSON.stringify({orderId:id,status})
+ });
+
+ this.loadAdminOrders();
 }
 
 }
