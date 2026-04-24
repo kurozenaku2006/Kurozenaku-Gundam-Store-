@@ -17,8 +17,8 @@
 
 <body class="bg-gradient-to-b from-black via-gray-900 to-black text-white min-h-screen">
 
-<!-- ✅ FIX HERE -->
-<div x-data="app()" x-init="init()" class="p-6 max-w-7xl mx-auto">
+<!-- ✅ EVERYTHING INSIDE ONE APP -->
+<div x-data="app()" class="p-6 max-w-7xl mx-auto">
 
 <!-- HEADER -->
 <div class="flex justify-between items-center mb-6">
@@ -52,7 +52,7 @@
 
 <button @click="addToCart(p)" class="bg-yellow-400 text-black w-full mt-2 py-1">Cart</button>
 <button @click="toggleWish(p)" class="w-full mt-1">❤️</button>
-<button @click="buyNow(p)" class="bg-white text-black w-full mt-2 py-1">Buy</button>
+<button @click="buyNow()" class="bg-white text-black w-full mt-2 py-1">Buy</button>
 
 </div>
 </template>
@@ -81,49 +81,16 @@
 <!-- WISHLIST -->
 <div x-show="view==='wishlist'">
 <h2 class="text-xl mb-4">Wishlist</h2>
-
-<template x-for="w in wishlist">
-<div class="border-b py-2 flex justify-between">
-<span x-text="w.name"></span>
-<button @click="toggleWish(w)">Remove</button>
-</div>
-</template>
 </div>
 
 <!-- ORDERS -->
 <div x-show="view==='orders'">
 <h2 class="text-xl mb-4">Orders</h2>
-
-<template x-for="o in orders">
-<div class="border p-2 mb-2">
-<p x-text="o.productName"></p>
-<p>Status: <span x-text="o.status"></span></p>
-</div>
-</template>
 </div>
 
 <!-- TRACKING -->
 <div x-show="view==='tracking'">
 <h2 class="text-xl mb-4">Tracking</h2>
-
-<template x-for="o in orders">
-<div class="border p-2 mb-2">
-<p x-text="o.productName"></p>
-<p>Status: <span x-text="o.status"></span></p>
-</div>
-</template>
-</div>
-
-<!-- ADMIN -->
-<div x-show="view==='admin'" class="bg-white/10 p-4 rounded">
-<h2 class="text-xl mb-4">Admin Panel</h2>
-
-<input x-model="name" placeholder="Name" class="text-black p-2 w-full mb-2">
-<input x-model="price" placeholder="Price" class="text-black p-2 w-full mb-2">
-
-<button @click="add()" class="bg-blue-500 px-4 py-2">Add</button>
-</div>
-
 </div>
 
 <!-- OVERLAY -->
@@ -134,64 +101,63 @@ class="fixed inset-0 bg-black/60 z-40"></div>
 <div x-show="menuOpen"
 class="fixed top-0 right-0 h-full w-72 bg-gradient-to-b from-gray-900 to-blue-950 z-50 p-5">
 
-<div class="flex items-center justify-between mb-4">
-<button @click="menuOpen=false" class="text-xl px-3 py-1 bg-white/10 rounded">✕</button>
-<h2 class="text-lg font-bold">Menu</h2>
+<div class="flex justify-between mb-4">
+<button @click="menuOpen=false" class="bg-white/10 px-3 py-1 rounded">✕</button>
+<h2>Menu</h2>
 </div>
 
-<button @click="go('shop')" class="bg-white/10 hover:bg-white/20 w-full py-2 mb-2 rounded flex gap-2 px-3">🛍 Shop</button>
+<button @click="go('shop')" class="w-full mb-2 bg-white/10 py-2 rounded">🛍 Shop</button>
 
-<button @click="go('cart')" class="bg-white/10 hover:bg-white/20 w-full py-2 mb-2 rounded flex gap-2 px-3">🛒 Cart (<span x-text="cart.length"></span>)</button>
+<button @click="go('cart')" class="w-full mb-2 bg-white/10 py-2 rounded">
+🛒 Cart (<span x-text="cart.length"></span>)
+</button>
 
-<button @click="go('wishlist')" class="bg-white/10 hover:bg-white/20 w-full py-2 mb-2 rounded flex gap-2 px-3">❤️ Wishlist</button>
+<button @click="go('wishlist')" class="w-full mb-2 bg-white/10 py-2 rounded">❤️ Wishlist</button>
 
-<button @click="go('orders')" class="bg-white/10 hover:bg-white/20 w-full py-2 mb-2 rounded flex gap-2 px-3">📦 Orders</button>
+<button @click="go('orders')" class="w-full mb-2 bg-white/10 py-2 rounded">📦 Orders</button>
 
-<button @click="go('tracking')" class="bg-white/10 hover:bg-white/20 w-full py-2 mb-2 rounded flex gap-2 px-3">🚚 Tracking</button>
+<button @click="go('tracking')" class="w-full mb-2 bg-white/10 py-2 rounded">🚚 Tracking</button>
 
-<button x-show="isAdmin" @click="go('admin')" class="bg-gradient-to-r from-purple-500 to-pink-500 w-full py-2 rounded flex justify-center">⚙ Admin</button>
+</div>
 
 </div>
 
 <script>
-firebase.initializeApp({
- apiKey: "AIzaSy...",
- authDomain: "kurozenaku-gundam-store.firebaseapp.com",
- projectId: "kurozenaku-gundam-store"
-});
-
-const auth = firebase.auth();
-const db = firebase.firestore();
-
-document.addEventListener('alpine:init', () => {
-
-Alpine.data('app', () => ({
+window.app = function () {
+return {
 
 menuOpen:false,
 view:'shop',
 
 products:[],
-orders:[],
 cart:[],
 wishlist:[],
 
 search:'',
 category:'ALL',
 
-user:null,
-isAdmin:false,
-
-name:'',price:'',
-
 init(){
-auth.onAuthStateChanged(u=>{
- this.user=u;
- this.isAdmin = u && u.email==="vedantbhalge2006@gmail.com";
+this.loadProducts();
+},
+
+loadProducts(){
+try{
+firebase.initializeApp({
+apiKey: "AIzaSyByLURDPjEbLepc3Wz3O1MAYYLXSeu04Zg",
+authDomain: "kurozenaku-gundam-store.firebaseapp.com",
+projectId: "kurozenaku-gundam-store"
 });
+
+const db = firebase.firestore();
 
 db.collection("products").onSnapshot(s=>{
- this.products = s.docs.map(d=>({id:d.id,...d.data()}));
+this.products = s.docs.map(d=>({id:d.id,...d.data()}));
 });
+}catch(e){
+this.products = [
+{id:1,name:"Test Gundam",price:2000,image:"https://via.placeholder.com/150",category:"HG"}
+];
+}
 },
 
 filteredProducts(){
@@ -221,25 +187,12 @@ this.view=v;
 this.menuOpen=false;
 },
 
-login(){
-auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
-},
-
-logout(){
-auth.signOut();
-},
-
 buyNow(){
 alert("Buy working");
-},
-
-add(){
-alert("Product added");
 }
 
-}));
-
-});
+}
+}
 </script>
 
 </body>
