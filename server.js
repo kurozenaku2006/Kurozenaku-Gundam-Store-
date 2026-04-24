@@ -9,86 +9,150 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+/* ================= FIREBASE ================= */
+
 admin.initializeApp({
- credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT))
+  credential: admin.credential.cert(
+    JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+  )
 });
 
 const db = admin.firestore();
 
+/* ================= RAZORPAY ================= */
+
 const razorpay = new Razorpay({
- key_id: process.env.RAZORPAY_KEY,
- key_secret: process.env.RAZORPAY_SECRET
+  key_id: process.env.RAZORPAY_KEY,
+  key_secret: process.env.RAZORPAY_SECRET
 });
 
-const ADMIN_EMAIL = "vedantbhalge2006@gmail.com";
+/* ================= AUTH MIDDLEWARE ================= */
 
-async function verifyUser(req,res,next){
- try{
-  const token=req.headers.authorization?.split("Bearer ")[1];
-  const decoded=await admin.auth().verifyIdToken(token);
-  req.user=decoded;
-  next();
- }catch{
-  res.status(401).send("Unauthorized");
- }
+async function verifyUser(req, res, next) {
+  try {
+    const token = req.headers.authorization?.split("Bearer ")[1];
+
+    if (!token) {
+      return res.status(401).send("No token");
+    }
+
+    const decoded = await admin.auth().verifyIdToken(token);
+    req.user = decoded;
+
+    next();
+  } catch (err) {
+    console.error("Auth error:", err);
+    res.status(401).send("Unauthorized");
+  }
 }
 
-function verifyAdmin(req,res,next){
- if(req.user.email!==ADMIN_EMAIL){
-  return res.status(403).send("Forbidden");
- }
- next();
-}
+/* ================= CREATE ORDER ================= */
 
-app.post("/create-order", verifyUser, async (req,res)=>{
- const {productId} = req.body;
+app.post("/create-order", verifyUser, async (req, res) => {
+  try {
+    const { productId } = req.body;
 
- const doc = await db.collection("products").doc(productId).get();
- const p = doc.data();
+    if (!productId) {
+      return res.status(400).send("Missing productId");
+    }
 
- if(!p || p.stock<=0){
-  return res.status(400).send("Out of stock");
- }
+    const doc = await db.collection("products").doc(productId).get();
 
- const order = await razorpay.orders.create({
-  amount: p.price * 100,
-  currency:"INR"
- });
+    if (!doc.exists) {
+      return res.status(404).send("Product not found");
+    }
 
- await db.collection("orders").doc(order.id).set({
-  userId:req.user.uid,
-  productId,
-  productName:p.name,
-  totalPrice:p.price,
-  status:"PENDING"
- });
+    const p = doc.data();
 
- res.json(order);
+    if (!p.price) {
+      return res.status(400).send("Invalid product price");
+    }
+
+    // Create Razorpay order
+    const order = await razorpay.orders.create({
+      amount: p.price * 100, // paise
+      currency: "INR"
+    });
+
+    // Save order in Firestore
+    await db.collection("orders").doc(order.id).set({
+      userId: req.user.uid,
+      productId,
+      productName: p.name,
+      totalPrice: p.price,
+      status: "PENDING",
+      createdAt: new Date()
+    });
+
+    res.json(order);
+
+  } catch (err) {
+    console.error("Create order error:", err);
+    res.status(500).send("Server error");
+  }
 });
 
-app.post("/verify", verifyUser, async (req,res)=>{
- const {order_id,payment_id,signature} = req.body;
+/* ================= VERIFY PAYMENT ================= */
 
- const expected = crypto.createHmac("sha256",process.env.RAZORPAY_SECRET)
-  .update(order_id+"|"+payment_id)
-  .digest("hex");
+app.post("/verify", verifyUser, async (req, res) => {
+  try {
+    const { order_id, payment_id, signature } = req.body;
 
- if(expected!==signature){
-  return res.status(400).send("Invalid");
- }
+    // Validate input
+    if (!order_id || !payment_id || !signature) {
+      return res.status(400).send("Missing payment data");
+    }
 
- const orderDoc = await db.collection("orders").doc(order_id).get();
- const data = orderDoc.data();
+    // Generate expected signature
+    const expected = crypto
+      .createHmac("sha256", process.env.RAZORPAY_SECRET)
+      .update(order_id + "|" + payment_id)
+      .digest("hex");
 
- await db.collection("products").doc(data.productId).update({
-  stock: admin.firestore.FieldValue.increment(-1)
- });
+    // Verify signature
+    if (expected !== signature) {
+      return res.status(400).send("Invalid signature");
+    }
 
- await db.collection("orders").doc(order_id).update({
-  status:"PAID"
- });
+    // Update order status
+    await db.collection("orders").doc(order_id).update({
+      status: "PAID",
+      paymentId: payment_id
+    });
 
- res.send({success:true});
+    res.send({ success: true });
+
+  } catch (err) {
+    console.error("Verify error:", err);
+    res.status(500).send("Server error");
+  }
 });
 
-app.listen(5000,()=>console.log("Server running"));
+/* ================= GET USER ORDERS ================= */
+
+app.get("/orders", verifyUser, async (req, res) => {
+  try {
+    const snap = await db.collection("orders")
+      .where("userId", "==", req.user.uid)
+      .get();
+
+    const orders = snap.docs.map(d => ({
+      id: d.id,
+      ...d.data()
+    }));
+
+    res.json(orders);
+
+  } catch (err) {
+    console.error("Orders error:", err);
+    res.status(500).send("Server error");
+  }
+});
+
+/* ================= START SERVER ================= */
+
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log("Server running on port " + PORT);
+});
