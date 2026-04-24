@@ -17,7 +17,6 @@
 
 <body class="bg-gradient-to-b from-black via-gray-900 to-black text-white min-h-screen">
 
-<!-- ✅ EVERYTHING INSIDE ONE APP -->
 <div x-data="app()" class="p-6 max-w-7xl mx-auto">
 
 <!-- HEADER -->
@@ -29,16 +28,39 @@
 </button>
 </div>
 
-<!-- CATEGORY -->
+<!-- SEARCH + FILTER -->
 <div class="flex gap-2 mb-4">
-<button @click="category='ALL'">All</button>
-<button @click="category='HG'">HG</button>
-<button @click="category='MG'">MG</button>
-<button @click="category='PG'">PG</button>
+
+<button @click="filterOpen=true" class="bg-white/10 px-3 rounded">
+☰
+</button>
+
+<input x-model="search"
+placeholder="Search Gundam kits..."
+class="flex-1 p-2 text-black rounded"/>
+
 </div>
 
-<!-- SEARCH -->
-<input x-model="search" placeholder="Search Gundam kits..." class="w-full p-2 mb-4 text-black rounded"/>
+<!-- FILTER DRAWER -->
+<div x-show="filterOpen"
+class="fixed top-0 left-0 h-full w-60 bg-gray-900 z-50 p-4">
+
+<h2 class="mb-4 text-lg font-semibold">Category</h2>
+
+<template x-for="c in ['ALL','HG','MG','PG','EG','RG','SD']">
+<button 
+@click="category=c; filterOpen=false"
+class="block w-full text-left mb-2 bg-white/10 px-3 py-2 rounded hover:bg-white/20"
+x-text="c">
+</button>
+</template>
+
+<button @click="filterOpen=false"
+class="mt-4 w-full bg-red-500 py-2 rounded">
+Close
+</button>
+
+</div>
 
 <!-- PRODUCTS -->
 <div x-show="view==='shop'" class="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -65,13 +87,7 @@
 <template x-for="item in cart">
 <div class="flex justify-between border-b py-2">
 <span x-text="item.name"></span>
-
-<div>
-<button @click="item.qty++">+</button>
 <span x-text="item.qty"></span>
-<button @click="item.qty--">-</button>
-</div>
-
 </div>
 </template>
 
@@ -97,7 +113,7 @@
 <div x-show="menuOpen" @click="menuOpen=false"
 class="fixed inset-0 bg-black/60 z-40"></div>
 
-<!-- DRAWER -->
+<!-- MENU DRAWER -->
 <div x-show="menuOpen"
 class="fixed top-0 right-0 h-full w-72 bg-gradient-to-b from-gray-900 to-blue-950 z-50 p-5">
 
@@ -127,6 +143,7 @@ window.app = function () {
 return {
 
 menuOpen:false,
+filterOpen:false,
 view:'shop',
 
 products:[],
@@ -155,7 +172,7 @@ this.products = s.docs.map(d=>({id:d.id,...d.data()}));
 });
 }catch(e){
 this.products = [
-{id:1,name:"Test Gundam",price:2000,image:"https://via.placeholder.com/150",category:"HG"}
+{id:1,name:"HG Gundam",price:2000,image:"https://via.placeholder.com/150",category:"HG"}
 ];
 }
 },
