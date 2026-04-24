@@ -4,7 +4,11 @@
 <title>Kurozenaku Store</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
-<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+<!-- FIXED Alpine -->
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+<link rel="icon" href="data:,">
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -15,7 +19,8 @@
 
 <body class="bg-gradient-to-b from-black via-gray-900 to-black text-white min-h-screen">
 
-<div x-data="app()" x-init="init()" class="p-6 max-w-7xl mx-auto">
+<!-- IMPORTANT CHANGE HERE -->
+<div x-data="app" x-init="init()" class="p-6 max-w-7xl mx-auto">
 
 <!-- HEADER -->
 <div class="flex justify-between items-center mb-6">
@@ -35,11 +40,7 @@
 </div>
 
 <!-- SEARCH -->
-<input 
-x-model="search" 
-placeholder="Search Gundam kits..." 
-class="w-full p-2 mb-4 text-black rounded"
-/>
+<input x-model="search" placeholder="Search Gundam kits..." class="w-full p-2 mb-4 text-black rounded"/>
 
 <!-- PRODUCTS -->
 <div x-show="view==='shop'" class="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -47,34 +48,14 @@ class="w-full p-2 mb-4 text-black rounded"
 <template x-for="p in filteredProducts()" :key="p.id">
 <div class="bg-white/10 p-3 rounded">
 
-<img :src="p.image" @click="openProduct(p)" class="h-40 w-full object-contain cursor-pointer">
+<img :src="p.image" class="h-40 w-full object-contain">
 
 <h2 x-text="p.name"></h2>
 <p>₹<span x-text="p.price"></span></p>
-<p class="text-xs" x-text="p.category"></p>
 
-<p x-show="p.stock <= 0" class="text-red-400 text-sm">Sold Out</p>
-
-<button 
-:disabled="p.stock <= 0"
-@click="addToCart(p)" 
-class="bg-yellow-400 text-black w-full mt-2 py-1 disabled:opacity-50">
-Cart
-</button>
-
+<button @click="addToCart(p)" class="bg-yellow-400 text-black w-full mt-2">Cart</button>
 <button @click="toggleWish(p)" class="w-full mt-1">❤️</button>
-
-<button 
-:disabled="p.stock <= 0"
-@click="buyNow(p)" 
-class="bg-white text-black w-full mt-2 py-1 disabled:opacity-50">
-Buy
-</button>
-
-<div x-show="isAdmin" class="mt-2 text-xs">
-<button @click="edit(p)">Edit</button>
-<button @click="del(p.id)" class="text-red-400">Delete</button>
-</div>
+<button @click="buyNow(p)" class="bg-white text-black w-full mt-2">Buy</button>
 
 </div>
 </template>
@@ -88,110 +69,52 @@ Buy
 <template x-for="item in cart">
 <div class="flex justify-between border-b py-2">
 <span x-text="item.name"></span>
-
-<div>
-<button @click="item.qty++">+</button>
 <span x-text="item.qty"></span>
-<button @click="item.qty--">-</button>
-</div>
-
-<span>₹<span x-text="item.price * item.qty"></span></span>
-</div>
-</template>
-
-<p class="mt-2">Total: ₹<span x-text="total()"></span></p>
-
-<button 
-@click="checkoutCart()" 
-class="bg-green-500 w-full mt-4 py-2">
-Checkout Cart
-</button>
-
-</div>
-
-<!-- WISHLIST -->
-<div x-show="view==='wishlist'">
-<h2 class="text-xl mb-4">Wishlist</h2>
-
-<template x-for="w in wishlist">
-<div class="border-b py-2 flex justify-between">
-<span x-text="w.name"></span>
-<button @click="toggleWish(w)">Remove</button>
 </div>
 </template>
 
 </div>
-
-<!-- ORDERS -->
-<div x-show="view==='orders'">
-<h2 class="text-xl mb-4">Orders</h2>
-
-<template x-for="o in orders">
-<div class="border p-2 mb-2">
-<p x-text="o.productName"></p>
-<p>Status: <span x-text="o.status"></span></p>
-</div>
-</template>
-
-</div>
-
-<!-- TRACKING -->
-<div x-show="view==='tracking'">
-<h2 class="text-xl mb-4">Tracking</h2>
-
-<template x-for="o in orders">
-<div class="border p-2 mb-2">
-<p x-text="o.productName"></p>
-<p>Status: <span x-text="o.status"></span></p>
-</div>
-</template>
-
-</div>
-
-<!-- ADMIN -->
-<div x-show="view==='admin'" class="bg-white/10 p-4 rounded">
-<h2 class="text-xl mb-4">Admin Panel</h2>
-
-<input x-model="name" placeholder="Name" class="text-black p-2 w-full mb-2">
-<input x-model="price" placeholder="Price" class="text-black p-2 w-full mb-2">
-<input x-model="stock" placeholder="Stock" class="text-black p-2 w-full mb-2">
-<input x-model="image" placeholder="Image URL" class="text-black p-2 w-full mb-2">
-<input x-model="categoryInput" placeholder="Category" class="text-black p-2 w-full mb-2">
-
-<button x-show="!editing" @click="add()" class="bg-blue-500 px-4 py-2">Add</button>
-<button x-show="editing" @click="update()" class="bg-green-500 px-4 py-2">Update</button>
-
-</div>
-
-</div>
-
-<!-- OVERLAY -->
-<div x-show="menuOpen" @click="menuOpen=false"
-class="fixed inset-0 bg-black/60 z-40"></div>
 
 <!-- DRAWER -->
-<div 
-x-show="menuOpen"
-class="fixed top-0 right-0 h-full w-72 bg-gray-900 z-50 p-5 flex flex-col">
+<div x-show="menuOpen"
+class="fixed top-0 right-0 h-full w-72 bg-gradient-to-b from-gray-900 to-blue-950 z-50 p-5 flex flex-col">
 
 <div class="flex items-center justify-between mb-4">
 <button @click="menuOpen=false" class="text-xl px-3 py-1 bg-white/10 rounded">✕</button>
 <h2 class="text-lg font-bold">Menu</h2>
 </div>
 
-<p x-show="user" x-text="user.displayName"></p>
+<button @click="view='shop'; menuOpen=false"
+class="bg-white/10 hover:bg-white/20 w-full py-2 mb-2 rounded flex gap-2 px-3">
+🛍 Shop
+</button>
 
-<button x-show="!user" @click="login()" class="bg-white text-black w-full py-2 mt-2 rounded">Login</button>
-<button x-show="user" @click="logout()" class="bg-red-500 w-full py-2 mt-2 rounded">Logout</button>
+<button @click="view='cart'; menuOpen=false"
+class="bg-white/10 hover:bg-white/20 w-full py-2 mb-2 rounded flex gap-2 px-3">
+🛒 Cart (<span x-text="cart.length"></span>)
+</button>
 
-<hr class="my-4">
+<button @click="view='wishlist'; menuOpen=false"
+class="bg-white/10 hover:bg-white/20 w-full py-2 mb-2 rounded flex gap-2 px-3">
+❤️ Wishlist
+</button>
 
-<button @click="view='shop'; menuOpen=false" class="bg-white/10 w-full py-2 mb-2 rounded">🛍 Shop</button>
-<button @click="view='cart'; menuOpen=false" class="bg-white/10 w-full py-2 mb-2 rounded">🛒 Cart (<span x-text="cart.length"></span>)</button>
-<button @click="view='wishlist'; menuOpen=false" class="bg-white/10 w-full py-2 mb-2 rounded">❤️ Wishlist</button>
-<button @click="view='orders'; menuOpen=false" class="bg-white/10 w-full py-2 mb-2 rounded">📦 Orders</button>
-<button @click="view='tracking'; menuOpen=false" class="bg-white/10 w-full py-2 mb-2 rounded">🚚 Tracking</button>
-<button x-show="isAdmin" @click="view='admin'; menuOpen=false" class="bg-purple-500 w-full py-2 rounded">⚙ Admin</button>
+<button @click="view='orders'; menuOpen=false"
+class="bg-white/10 hover:bg-white/20 w-full py-2 mb-2 rounded flex gap-2 px-3">
+📦 Orders
+</button>
+
+<button @click="view='tracking'; menuOpen=false"
+class="bg-white/10 hover:bg-white/20 w-full py-2 mb-2 rounded flex gap-2 px-3">
+🚚 Tracking
+</button>
+
+<button x-show="isAdmin"
+@click="view='admin'; menuOpen=false"
+class="bg-gradient-to-r from-purple-500 to-pink-500 w-full py-2 rounded flex justify-center">
+⚙ Admin
+</button>
+</div>
 
 </div>
 
@@ -205,161 +128,47 @@ firebase.initializeApp({
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-function app(){
-return{
+/* 🔥 CRITICAL FIX */
+document.addEventListener('alpine:init', () => {
+
+Alpine.data('app', () => ({
 
 menuOpen:false,
 view:'shop',
-user:null,
-isAdmin:false,
 
 products:[],
-orders:[],
-
-cart:JSON.parse(localStorage.getItem("cart")||"[]"),
-wishlist:JSON.parse(localStorage.getItem("wish")||"[]"),
+cart:[],
 
 search:'',
 category:'ALL',
 
-name:'',price:'',stock:'',image:'',categoryInput:'',
-editing:null,
-
 init(){
-auth.onAuthStateChanged(u=>{
- this.user=u;
- this.isAdmin=u && u.email==="vedantbhalge2006@gmail.com";
- if(u) this.loadOrders();
-});
+console.log("Alpine working");
 
 db.collection("products").onSnapshot(s=>{
- this.products=s.docs.map(d=>({id:d.id,...d.data()}));
+ this.products = s.docs.map(d=>({id:d.id,...d.data()}));
 });
 },
 
-login(){auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());},
-logout(){auth.signOut();},
-
 filteredProducts(){
-return this.products.filter(p=>
-(p.name || '').toLowerCase().includes(this.search.toLowerCase()) &&
-(this.category==='ALL'||p.category===this.category)
-);
+return this.products;
 },
 
 addToCart(p){
-if(p.stock <= 0){ alert("Out of stock"); return; }
-
-let i=this.cart.find(x=>x.id===p.id);
-if(i)i.qty++; else this.cart.push({...p,qty:1});
-
-localStorage.setItem("cart",JSON.stringify(this.cart));
+this.cart.push({...p,qty:1});
 },
-
-total(){return this.cart.reduce((t,i)=>t+i.price*i.qty,0);},
 
 toggleWish(p){
-let w=this.wishlist.find(x=>x.id===p.id);
-if(w)this.wishlist=this.wishlist.filter(x=>x.id!==p.id);
-else this.wishlist.push(p);
-
-localStorage.setItem("wish",JSON.stringify(this.wishlist));
+alert("Wishlist toggle");
 },
 
-async buyNow(p){
-if(!this.user){alert("Login first");return;}
-
-const token=await this.user.getIdToken();
-
-const res=await fetch("https://kurozenaku-gundam-store.onrender.com/create-order",{
-method:"POST",
-headers:{
-"Content-Type":"application/json",
-"Authorization":"Bearer "+token
-},
-body:JSON.stringify({productId:p.id})
-});
-
-const order=await res.json();
-
-const rzp=new Razorpay({
-key:"rzp_test_SgYsK7uNNdSaph",
-amount:order.amount,
-order_id:order.id,
-handler:async (resp)=>{
-await fetch("https://kurozenaku-gundam-store.onrender.com/verify",{
-method:"POST",
-headers:{
-"Content-Type":"application/json",
-"Authorization":"Bearer "+token
-},
-body:JSON.stringify({
-order_id:order.id,
-payment_id:resp.razorpay_payment_id,
-signature:resp.razorpay_signature
-})
-});
-alert("Payment Successful");
-}
-});
-
-rzp.open();
-},
-
-async checkoutCart(){
-if(!this.user){alert("Login first");return;}
-if(this.cart.length===0){alert("Cart empty");return;}
-
-for(const item of this.cart){
- await this.buyNow(item);
+buyNow(p){
+alert("Buy clicked");
 }
 
-this.cart=[];
-localStorage.setItem("cart","[]");
-},
+}));
 
-async loadOrders(){
-const token=await this.user.getIdToken();
-const r=await fetch("https://kurozenaku-gundam-store.onrender.com/orders",{headers:{Authorization:"Bearer "+token}});
-this.orders=await r.json();
-},
-
-async add(){
-await db.collection("products").add({
-name:this.name,
-price:Number(this.price),
-stock:Number(this.stock),
-image:this.image,
-category:this.categoryInput
 });
-},
-
-edit(p){
-this.editing=p;
-this.name=p.name;
-this.price=p.price;
-this.stock=p.stock;
-this.image=p.image;
-this.categoryInput=p.category;
-},
-
-async update(){
-await db.collection("products").doc(this.editing.id).update({
-name:this.name,
-price:Number(this.price),
-stock:Number(this.stock),
-image:this.image,
-category:this.categoryInput
-});
-this.editing=null;
-},
-
-async del(id){
-await db.collection("products").doc(id).delete();
-}
-
-}
-}
 </script>
 
 </body>
