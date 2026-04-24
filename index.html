@@ -4,8 +4,6 @@
 <title>Kurozenaku Store</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
-
-<!-- FIXED Alpine -->
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
 <link rel="icon" href="data:,">
@@ -19,8 +17,8 @@
 
 <body class="bg-gradient-to-b from-black via-gray-900 to-black text-white min-h-screen">
 
-<!-- IMPORTANT CHANGE HERE -->
-<div x-data="app" x-init="init()" class="p-6 max-w-7xl mx-auto">
+<!-- ✅ FIX HERE -->
+<div x-data="app()" x-init="init()" class="p-6 max-w-7xl mx-auto">
 
 <!-- HEADER -->
 <div class="flex justify-between items-center mb-6">
@@ -44,7 +42,6 @@
 
 <!-- PRODUCTS -->
 <div x-show="view==='shop'" class="grid grid-cols-2 md:grid-cols-4 gap-4">
-
 <template x-for="p in filteredProducts()" :key="p.id">
 <div class="bg-white/10 p-3 rounded">
 
@@ -53,13 +50,12 @@
 <h2 x-text="p.name"></h2>
 <p>₹<span x-text="p.price"></span></p>
 
-<button @click="addToCart(p)" class="bg-yellow-400 text-black w-full mt-2">Cart</button>
+<button @click="addToCart(p)" class="bg-yellow-400 text-black w-full mt-2 py-1">Cart</button>
 <button @click="toggleWish(p)" class="w-full mt-1">❤️</button>
-<button @click="buyNow(p)" class="bg-white text-black w-full mt-2">Buy</button>
+<button @click="buyNow(p)" class="bg-white text-black w-full mt-2 py-1">Buy</button>
 
 </div>
 </template>
-
 </div>
 
 <!-- CART -->
@@ -69,58 +65,97 @@
 <template x-for="item in cart">
 <div class="flex justify-between border-b py-2">
 <span x-text="item.name"></span>
+
+<div>
+<button @click="item.qty++">+</button>
 <span x-text="item.qty"></span>
+<button @click="item.qty--">-</button>
+</div>
+
 </div>
 </template>
 
+<p>Total: ₹<span x-text="total()"></span></p>
 </div>
+
+<!-- WISHLIST -->
+<div x-show="view==='wishlist'">
+<h2 class="text-xl mb-4">Wishlist</h2>
+
+<template x-for="w in wishlist">
+<div class="border-b py-2 flex justify-between">
+<span x-text="w.name"></span>
+<button @click="toggleWish(w)">Remove</button>
+</div>
+</template>
+</div>
+
+<!-- ORDERS -->
+<div x-show="view==='orders'">
+<h2 class="text-xl mb-4">Orders</h2>
+
+<template x-for="o in orders">
+<div class="border p-2 mb-2">
+<p x-text="o.productName"></p>
+<p>Status: <span x-text="o.status"></span></p>
+</div>
+</template>
+</div>
+
+<!-- TRACKING -->
+<div x-show="view==='tracking'">
+<h2 class="text-xl mb-4">Tracking</h2>
+
+<template x-for="o in orders">
+<div class="border p-2 mb-2">
+<p x-text="o.productName"></p>
+<p>Status: <span x-text="o.status"></span></p>
+</div>
+</template>
+</div>
+
+<!-- ADMIN -->
+<div x-show="view==='admin'" class="bg-white/10 p-4 rounded">
+<h2 class="text-xl mb-4">Admin Panel</h2>
+
+<input x-model="name" placeholder="Name" class="text-black p-2 w-full mb-2">
+<input x-model="price" placeholder="Price" class="text-black p-2 w-full mb-2">
+
+<button @click="add()" class="bg-blue-500 px-4 py-2">Add</button>
+</div>
+
+</div>
+
+<!-- OVERLAY -->
+<div x-show="menuOpen" @click="menuOpen=false"
+class="fixed inset-0 bg-black/60 z-40"></div>
 
 <!-- DRAWER -->
 <div x-show="menuOpen"
-class="fixed top-0 right-0 h-full w-72 bg-gradient-to-b from-gray-900 to-blue-950 z-50 p-5 flex flex-col">
+class="fixed top-0 right-0 h-full w-72 bg-gradient-to-b from-gray-900 to-blue-950 z-50 p-5">
 
 <div class="flex items-center justify-between mb-4">
 <button @click="menuOpen=false" class="text-xl px-3 py-1 bg-white/10 rounded">✕</button>
 <h2 class="text-lg font-bold">Menu</h2>
 </div>
 
-<button @click="view='shop'; menuOpen=false"
-class="bg-white/10 hover:bg-white/20 w-full py-2 mb-2 rounded flex gap-2 px-3">
-🛍 Shop
-</button>
+<button @click="go('shop')" class="bg-white/10 hover:bg-white/20 w-full py-2 mb-2 rounded flex gap-2 px-3">🛍 Shop</button>
 
-<button @click="view='cart'; menuOpen=false"
-class="bg-white/10 hover:bg-white/20 w-full py-2 mb-2 rounded flex gap-2 px-3">
-🛒 Cart (<span x-text="cart.length"></span>)
-</button>
+<button @click="go('cart')" class="bg-white/10 hover:bg-white/20 w-full py-2 mb-2 rounded flex gap-2 px-3">🛒 Cart (<span x-text="cart.length"></span>)</button>
 
-<button @click="view='wishlist'; menuOpen=false"
-class="bg-white/10 hover:bg-white/20 w-full py-2 mb-2 rounded flex gap-2 px-3">
-❤️ Wishlist
-</button>
+<button @click="go('wishlist')" class="bg-white/10 hover:bg-white/20 w-full py-2 mb-2 rounded flex gap-2 px-3">❤️ Wishlist</button>
 
-<button @click="view='orders'; menuOpen=false"
-class="bg-white/10 hover:bg-white/20 w-full py-2 mb-2 rounded flex gap-2 px-3">
-📦 Orders
-</button>
+<button @click="go('orders')" class="bg-white/10 hover:bg-white/20 w-full py-2 mb-2 rounded flex gap-2 px-3">📦 Orders</button>
 
-<button @click="view='tracking'; menuOpen=false"
-class="bg-white/10 hover:bg-white/20 w-full py-2 mb-2 rounded flex gap-2 px-3">
-🚚 Tracking
-</button>
+<button @click="go('tracking')" class="bg-white/10 hover:bg-white/20 w-full py-2 mb-2 rounded flex gap-2 px-3">🚚 Tracking</button>
 
-<button x-show="isAdmin"
-@click="view='admin'; menuOpen=false"
-class="bg-gradient-to-r from-purple-500 to-pink-500 w-full py-2 rounded flex justify-center">
-⚙ Admin
-</button>
-</div>
+<button x-show="isAdmin" @click="go('admin')" class="bg-gradient-to-r from-purple-500 to-pink-500 w-full py-2 rounded flex justify-center">⚙ Admin</button>
 
 </div>
 
 <script>
 firebase.initializeApp({
- apiKey: "AIzaSyByLURDPjEbLepc3Wz3O1MAYYLXSeu04Zg",
+ apiKey: "AIzaSy...",
  authDomain: "kurozenaku-gundam-store.firebaseapp.com",
  projectId: "kurozenaku-gundam-store"
 });
@@ -128,7 +163,6 @@ firebase.initializeApp({
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-/* 🔥 CRITICAL FIX */
 document.addEventListener('alpine:init', () => {
 
 Alpine.data('app', () => ({
@@ -137,13 +171,23 @@ menuOpen:false,
 view:'shop',
 
 products:[],
+orders:[],
 cart:[],
+wishlist:[],
 
 search:'',
 category:'ALL',
 
+user:null,
+isAdmin:false,
+
+name:'',price:'',
+
 init(){
-console.log("Alpine working");
+auth.onAuthStateChanged(u=>{
+ this.user=u;
+ this.isAdmin = u && u.email==="vedantbhalge2006@gmail.com";
+});
 
 db.collection("products").onSnapshot(s=>{
  this.products = s.docs.map(d=>({id:d.id,...d.data()}));
@@ -151,19 +195,46 @@ db.collection("products").onSnapshot(s=>{
 },
 
 filteredProducts(){
-return this.products;
+return this.products.filter(p=>
+(p.name||'').toLowerCase().includes(this.search.toLowerCase()) &&
+(this.category==='ALL'||p.category===this.category)
+);
 },
 
 addToCart(p){
-this.cart.push({...p,qty:1});
+let i=this.cart.find(x=>x.id===p.id);
+if(i)i.qty++; else this.cart.push({...p,qty:1});
+},
+
+total(){
+return this.cart.reduce((t,i)=>t+i.price*i.qty,0);
 },
 
 toggleWish(p){
-alert("Wishlist toggle");
+let w=this.wishlist.find(x=>x.id===p.id);
+if(w)this.wishlist=this.wishlist.filter(x=>x.id!==p.id);
+else this.wishlist.push(p);
 },
 
-buyNow(p){
-alert("Buy clicked");
+go(v){
+this.view=v;
+this.menuOpen=false;
+},
+
+login(){
+auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+},
+
+logout(){
+auth.signOut();
+},
+
+buyNow(){
+alert("Buy working");
+},
+
+add(){
+alert("Product added");
 }
 
 }));
