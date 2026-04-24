@@ -4,7 +4,7 @@
 <title>Kurozenaku Store</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/alpinejs" defer></script>
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -174,14 +174,8 @@ class="fixed inset-0 bg-black/60 z-40"></div>
 x-show="menuOpen"
 class="fixed top-0 right-0 h-full w-72 bg-gray-900 z-50 p-5 flex flex-col">
 
-<!-- TOP BAR (CLOSE + TITLE) -->
 <div class="flex items-center justify-between mb-4">
-<button 
-@click="menuOpen=false"
-class="text-xl px-3 py-1 bg-white/10 rounded hover:bg-white/20">
-✕
-</button>
-
+<button @click="menuOpen=false" class="text-xl px-3 py-1 bg-white/10 rounded">✕</button>
 <h2 class="text-lg font-bold">Menu</h2>
 </div>
 
@@ -248,7 +242,7 @@ logout(){auth.signOut();},
 
 filteredProducts(){
 return this.products.filter(p=>
-p.name.toLowerCase().includes(this.search.toLowerCase()) &&
+(p.name || '').toLowerCase().includes(this.search.toLowerCase()) &&
 (this.category==='ALL'||p.category===this.category)
 );
 },
@@ -292,14 +286,18 @@ const rzp=new Razorpay({
 key:"rzp_test_SgYsK7uNNdSaph",
 amount:order.amount,
 order_id:order.id,
-handler:async ()=>{
+handler:async (resp)=>{
 await fetch("https://kurozenaku-gundam-store.onrender.com/verify",{
 method:"POST",
 headers:{
 "Content-Type":"application/json",
 "Authorization":"Bearer "+token
 },
-body:JSON.stringify({order_id:order.id})
+body:JSON.stringify({
+order_id:order.id,
+payment_id:resp.razorpay_payment_id,
+signature:resp.razorpay_signature
+})
 });
 alert("Payment Successful");
 }
