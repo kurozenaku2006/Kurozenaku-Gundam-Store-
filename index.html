@@ -247,7 +247,15 @@ this.products = [
 
 login(){
 const provider = new firebase.auth.GoogleAuthProvider();
-firebase.auth().signInWithPopup(provider);
+
+firebase.auth().signInWithPopup(provider)
+.then(result=>{
+console.log("Login success", result.user);
+})
+.catch(error=>{
+console.error("LOGIN ERROR:", error);
+alert(error.message);
+});
 },
 
 logout(){
