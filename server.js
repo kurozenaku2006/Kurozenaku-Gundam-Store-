@@ -1,158 +1,146 @@
 require("dotenv").config();
 const express = require("express");
-const Razorpay = require("razorpay");
-const admin = require("firebase-admin");
-const crypto = require("crypto");
 const cors = require("cors");
+const Razorpay = require("razorpay");
+const crypto = require("crypto");
+const admin = require("firebase-admin");
 
 const app = express();
-app.use(cors());
 app.use(express.json());
 
-/* ================= FIREBASE ================= */
+// ✅ CORS (ONLY your frontend allowed)
+app.use(cors({
+  origin: [
+    "http://localhost:5500",
+    "https://kurozenaku-gundam-store.onrender.com"
+  ],
+  methods: ["GET", "POST"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
+
+// 🔥 Firebase Admin Setup
+const serviceAccount = require("./serviceAccountKey.json");
 
 admin.initializeApp({
-  credential: admin.credential.cert(
-    JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
-  )
+  credential: admin.credential.cert(serviceAccount),
 });
 
 const db = admin.firestore();
 
-/* ================= RAZORPAY ================= */
-
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY,
-  key_secret: process.env.RAZORPAY_SECRET
-});
-
-/* ================= AUTH MIDDLEWARE ================= */
-
-async function verifyUser(req, res, next) {
+// ==============================
+// 🔐 AUTH MIDDLEWARE
+// ==============================
+async function verifyToken(req, res, next) {
   try {
-    const token = req.headers.authorization?.split("Bearer ")[1];
+    const authHeader = req.headers.authorization;
 
-    if (!token) {
-      return res.status(401).send("No token");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).send("Unauthorized");
     }
 
+    const token = authHeader.split("Bearer ")[1];
     const decoded = await admin.auth().verifyIdToken(token);
-    req.user = decoded;
 
+    req.user = decoded;
     next();
   } catch (err) {
-    console.error("Auth error:", err);
-    res.status(401).send("Unauthorized");
+    console.error("Auth Error:", err);
+    res.status(401).send("Invalid token");
   }
 }
 
-/* ================= CREATE ORDER ================= */
+// ==============================
+// 💳 RAZORPAY SETUP
+// ==============================
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY,
+  key_secret: process.env.RAZORPAY_SECRET,
+});
 
-app.post("/create-order", verifyUser, async (req, res) => {
+// ==============================
+// 🧾 CREATE ORDER
+// ==============================
+app.post("/create-order", verifyToken, async (req, res) => {
   try {
-    const { productId } = req.body;
+    const { amount, items } = req.body;
 
-    if (!productId) {
-      return res.status(400).send("Missing productId");
+    if (!amount || !items) {
+      return res.status(400).send("Missing data");
     }
 
-    const doc = await db.collection("products").doc(productId).get();
+    const options = {
+      amount: amount * 100, // ₹ → paise
+      currency: "INR",
+      receipt: "receipt_" + Date.now(),
+    };
 
-    if (!doc.exists) {
-      return res.status(404).send("Product not found");
-    }
+    const order = await razorpay.orders.create(options);
 
-    const p = doc.data();
-
-    if (!p.price) {
-      return res.status(400).send("Invalid product price");
-    }
-
-    // Create Razorpay order
-    const order = await razorpay.orders.create({
-      amount: p.price * 100, // paise
-      currency: "INR"
-    });
-
-    // Save order in Firestore
+    // Save order to Firestore
     await db.collection("orders").doc(order.id).set({
       userId: req.user.uid,
-      productId,
-      productName: p.name,
-      totalPrice: p.price,
-      status: "PENDING",
-      createdAt: new Date()
+      items,
+      amount,
+      status: "CREATED",
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
     res.json(order);
-
   } catch (err) {
-    console.error("Create order error:", err);
-    res.status(500).send("Server error");
+    console.error("Create Order Error:", err);
+    res.status(500).send("Error creating order");
   }
 });
 
-/* ================= VERIFY PAYMENT ================= */
-
-app.post("/verify", verifyUser, async (req, res) => {
+// ==============================
+// ✅ VERIFY PAYMENT
+// ==============================
+app.post("/verify", verifyToken, async (req, res) => {
   try {
-    const { order_id, payment_id, signature } = req.body;
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature
+    } = req.body;
 
-    // Validate input
-    if (!order_id || !payment_id || !signature) {
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return res.status(400).send("Missing payment data");
     }
 
-    // Generate expected signature
     const expected = crypto
       .createHmac("sha256", process.env.RAZORPAY_SECRET)
-      .update(order_id + "|" + payment_id)
+      .update(razorpay_order_id + "|" + razorpay_payment_id)
       .digest("hex");
 
-    // Verify signature
-    if (expected !== signature) {
+    if (expected !== razorpay_signature) {
       return res.status(400).send("Invalid signature");
     }
 
     // Update order status
-    await db.collection("orders").doc(order_id).update({
+    await db.collection("orders").doc(razorpay_order_id).update({
       status: "PAID",
-      paymentId: payment_id
+      paymentId: razorpay_payment_id,
+      paidAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    res.send({ success: true });
-
+    res.json({ success: true });
   } catch (err) {
-    console.error("Verify error:", err);
-    res.status(500).send("Server error");
+    console.error("Verification Error:", err);
+    res.status(500).send("Verification failed");
   }
 });
 
-/* ================= GET USER ORDERS ================= */
-
-app.get("/orders", verifyUser, async (req, res) => {
-  try {
-    const snap = await db.collection("orders")
-      .where("userId", "==", req.user.uid)
-      .get();
-
-    const orders = snap.docs.map(d => ({
-      id: d.id,
-      ...d.data()
-    }));
-
-    res.json(orders);
-
-  } catch (err) {
-    console.error("Orders error:", err);
-    res.status(500).send("Server error");
-  }
+// ==============================
+// 🧪 HEALTH CHECK (optional)
+// ==============================
+app.get("/", (req, res) => {
+  res.send("Backend running");
 });
 
-/* ================= START SERVER ================= */
-
+// ==============================
+// 🚀 START SERVER
+// ==============================
 const PORT = process.env.PORT || 5000;
-
 app.listen(PORT, () => {
-  console.log("Server running on port " + PORT);
+  console.log("Server running on port", PORT);
 });
