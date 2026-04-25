@@ -30,15 +30,11 @@
 
 <!-- SEARCH + FILTER -->
 <div class="flex gap-2 mb-4">
-
-<button @click="filterOpen=true" class="bg-white/10 px-3 rounded">
-☰
-</button>
+<button @click="filterOpen=true" class="bg-white/10 px-3 rounded">☰</button>
 
 <input x-model="search"
 placeholder="Search Gundam kits..."
 class="flex-1 p-2 text-black rounded"/>
-
 </div>
 
 <!-- FILTER DRAWER -->
@@ -48,11 +44,9 @@ class="fixed top-0 left-0 h-full w-60 bg-gray-900 z-50 p-4">
 <h2 class="mb-4 text-lg font-semibold">Category</h2>
 
 <template x-for="c in ['ALL','HG','MG','PG','EG','RG','SD']">
-<button 
-@click="category=c; filterOpen=false"
+<button @click="category=c; filterOpen=false"
 class="block w-full text-left mb-2 bg-white/10 px-3 py-2 rounded hover:bg-white/20"
-x-text="c">
-</button>
+x-text="c"></button>
 </template>
 
 <button @click="filterOpen=false"
@@ -87,7 +81,13 @@ Close
 <template x-for="item in cart">
 <div class="flex justify-between border-b py-2">
 <span x-text="item.name"></span>
+
+<div>
+<button @click="item.qty++">+</button>
 <span x-text="item.qty"></span>
+<button @click="item.qty--">-</button>
+</div>
+
 </div>
 </template>
 
@@ -107,6 +107,31 @@ Close
 <!-- TRACKING -->
 <div x-show="view==='tracking'">
 <h2 class="text-xl mb-4">Tracking</h2>
+</div>
+
+<!-- ADMIN -->
+<div x-show="view==='admin'" class="bg-white/10 p-4 rounded">
+<h2 class="text-xl mb-4">Admin Panel</h2>
+
+<input x-model="name" placeholder="Product Name"
+class="text-black p-2 w-full mb-2">
+
+<input x-model="price" placeholder="Price"
+class="text-black p-2 w-full mb-2">
+
+<select x-model="newCategory" class="text-black p-2 w-full mb-2">
+<option>HG</option>
+<option>MG</option>
+<option>PG</option>
+<option>RG</option>
+<option>EG</option>
+<option>SD</option>
+</select>
+
+<button @click="addProduct()"
+class="bg-blue-500 px-4 py-2 w-full">
+Add Product
+</button>
 </div>
 
 <!-- OVERLAY -->
@@ -134,6 +159,30 @@ class="fixed top-0 right-0 h-full w-72 bg-gradient-to-b from-gray-900 to-blue-95
 
 <button @click="go('tracking')" class="w-full mb-2 bg-white/10 py-2 rounded">🚚 Tracking</button>
 
+<!-- USER SECTION -->
+<div class="mt-6 border-t border-white/20 pt-4">
+
+<div x-show="!user">
+<button @click="login()" class="w-full bg-blue-500 py-2 rounded mb-2">
+Login with Google
+</button>
+</div>
+
+<div x-show="user">
+<p class="text-sm mb-2" x-text="user.email"></p>
+
+<button @click="logout()" class="w-full bg-red-500 py-2 rounded mb-2">
+Logout
+</button>
+
+<button x-show="isAdmin" @click="go('admin')"
+class="w-full py-2 rounded bg-gradient-to-r from-purple-500 to-pink-500">
+⚙ Admin
+</button>
+</div>
+
+</div>
+
 </div>
 
 </div>
@@ -153,18 +202,37 @@ wishlist:[],
 search:'',
 category:'ALL',
 
+user:null,
+isAdmin:false,
+
+name:'',
+price:'',
+newCategory:'HG',
+
 init(){
+this.initFirebase();
 this.loadProducts();
 },
 
-loadProducts(){
+initFirebase(){
 try{
 firebase.initializeApp({
-apiKey: "AIzaSyByLURDPjEbLepc3Wz3O1MAYYLXSeu04Zg",
+apiKey: "YOUR_API_KEY",
 authDomain: "kurozenaku-gundam-store.firebaseapp.com",
 projectId: "kurozenaku-gundam-store"
 });
 
+firebase.auth().onAuthStateChanged(u=>{
+this.user = u;
+this.isAdmin = u && u.email === "vedantbhalge2006@gmail.com";
+});
+}catch(e){
+console.log("Firebase init error");
+}
+},
+
+loadProducts(){
+try{
 const db = firebase.firestore();
 
 db.collection("products").onSnapshot(s=>{
@@ -175,6 +243,29 @@ this.products = [
 {id:1,name:"HG Gundam",price:2000,image:"https://via.placeholder.com/150",category:"HG"}
 ];
 }
+},
+
+login(){
+const provider = new firebase.auth.GoogleAuthProvider();
+firebase.auth().signInWithPopup(provider);
+},
+
+logout(){
+firebase.auth().signOut();
+},
+
+addProduct(){
+if(!this.name || !this.price) return alert("Fill all fields");
+
+firebase.firestore().collection("products").add({
+name:this.name,
+price:Number(this.price),
+category:this.newCategory,
+image:"https://via.placeholder.com/150"
+});
+
+this.name='';
+this.price='';
 },
 
 filteredProducts(){
